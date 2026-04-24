@@ -54,6 +54,14 @@ Expected JSON payload:
 - Returns history for charts/debugging.
 - Optional: `source=sensor` or `source=mock`.
 
+### `GET /api/predictions?horizon=24&limit_history=all&history_preview=16&source=sensor&target=temperature`
+
+- Returns unsupervised forecast points from sensor history.
+- `limit_history=all` uses all available sensor points in DB.
+- `history_preview` controls how many recent historical points are returned for chart overlay.
+- `target` options: `temperature`, `turbidity`, `ph`, `tds`, `do`.
+- Includes anomaly fields (`is_anomaly`, `anomaly_score`) for each forecast point.
+
 ### `POST /api/gps`
 
 Expected JSON payload:

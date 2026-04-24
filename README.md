@@ -23,6 +23,8 @@ Water quality monitoring project with:
 4. Backend stores readings in `backend/data/telemetry.db`.
 5. Frontend polls backend every 10 seconds using:
    - `GET /api/readings/latest?sensor_only=1`
+6. Frontend polls prediction endpoint for forecast points:
+   - `GET /api/predictions?horizon=24&limit_history=all&history_preview=16&source=sensor&target=temperature`
 
 ## Prerequisites
 
@@ -74,6 +76,7 @@ Backend runs on `http://localhost:9999`.
 - `POST /api/readings`
 - `GET /api/readings/latest?sensor_only=1`
 - `GET /api/readings?limit=50&source=sensor`
+- `GET /api/predictions?horizon=24&limit_history=all&history_preview=16&source=sensor&target=temperature`
 - `GET /api/db/details`
 
 ### Sample POST Payload

@@ -1,7 +1,8 @@
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
+from math import isfinite
 
 from flask import Flask, jsonify, request
 
@@ -11,6 +12,15 @@ DB_LOCK = Lock()
 DB_PATH = Path(__file__).resolve().parent / "data" / "telemetry.db"
 MAX_TELEMETRY_ROWS = 5000
 MAX_GPS_ROWS = 10000
+PREDICTION_FEATURES = ("temperature", "turbidity", "ph", "tds", "dissolved_oxygen")
+PREDICTION_TARGETS = ("temperature", "turbidity", "ph", "tds", "do")
+PREDICTION_TARGET_TO_INDEX = {
+    "temperature": 0,
+    "turbidity": 1,
+    "ph": 2,
+    "tds": 3,
+    "do": 4,
+}
 
 
 def _get_db_connection():
@@ -178,6 +188,222 @@ def _prune_gps(conn):
     )
 
 
+def _distance_sq(a, b):
+    return sum((a[i] - b[i]) ** 2 for i in range(len(a)))
+
+
+def _mean_vector(vectors):
+    count = len(vectors)
+    if count == 0:
+        return []
+    width = len(vectors[0])
+    return [sum(v[i] for v in vectors) / count for i in range(width)]
+
+
+def _clip_prediction(point):
+    clipped = list(point)
+    if len(clipped) != 5:
+        return clipped
+
+    # Keep values in plausible physical bounds.
+    clipped[0] = max(-5.0, min(60.0, clipped[0]))  # temperature
+    clipped[1] = max(0.0, min(2000.0, clipped[1]))  # turbidity
+    clipped[2] = max(0.0, min(14.0, clipped[2]))  # pH
+    clipped[3] = max(0.0, min(10000.0, clipped[3]))  # TDS
+    clipped[4] = max(0.0, min(25.0, clipped[4]))  # dissolved oxygen
+    return clipped
+
+
+def _run_kmeans(vectors, k, max_iter=24):
+    # Deterministic centroid bootstrap so results are stable across runs.
+    step = max(1, len(vectors) // k)
+    centroids = [list(vectors[min(i * step, len(vectors) - 1)]) for i in range(k)]
+    labels = [0] * len(vectors)
+
+    for _ in range(max_iter):
+        changed = False
+
+        for idx, vector in enumerate(vectors):
+            nearest = min(range(k), key=lambda c: _distance_sq(vector, centroids[c]))
+            if labels[idx] != nearest:
+                labels[idx] = nearest
+                changed = True
+
+        for cluster_idx in range(k):
+            members = [vectors[i] for i, label in enumerate(labels) if label == cluster_idx]
+            if members:
+                centroids[cluster_idx] = _mean_vector(members)
+
+        if not changed:
+            break
+
+    return labels, centroids
+
+
+def _percentile(values, ratio):
+    if not values:
+        return 0.0
+    if ratio <= 0:
+        return float(min(values))
+    if ratio >= 1:
+        return float(max(values))
+
+    sorted_values = sorted(values)
+    position = ratio * (len(sorted_values) - 1)
+    lower = int(position)
+    upper = min(len(sorted_values) - 1, lower + 1)
+    if lower == upper:
+        return float(sorted_values[lower])
+    weight = position - lower
+    return float(
+        sorted_values[lower] * (1.0 - weight) + sorted_values[upper] * weight
+    )
+
+
+def _normalize_target(target):
+    if not target:
+        return "temperature"
+    cleaned = str(target).strip().lower()
+    return cleaned if cleaned in PREDICTION_TARGETS else "temperature"
+
+
+def _iso_to_datetime(value):
+    if not value:
+        return None
+    try:
+        normalized = value.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(normalized)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except ValueError:
+        return None
+
+
+def _estimate_step_seconds(rows):
+    if len(rows) < 2:
+        return 10
+
+    dts = [_iso_to_datetime(row["created_at"]) for row in rows]
+    deltas = []
+    for i in range(1, len(dts)):
+        if dts[i] is None or dts[i - 1] is None:
+            continue
+        diff = (dts[i] - dts[i - 1]).total_seconds()
+        if diff > 0 and isfinite(diff):
+            deltas.append(diff)
+
+    if not deltas:
+        return 10
+    return int(round(sum(deltas) / len(deltas))) or 10
+
+
+def _build_predictions(rows, horizon, target):
+    vectors = []
+    for row in rows:
+        vector = [float(row[key]) for key in PREDICTION_FEATURES]
+        vectors.append(vector)
+
+    if len(vectors) < 12:
+        return None, "Need at least 12 historical sensor rows for predictions."
+
+    means = []
+    stds = []
+    for feature_idx in range(len(PREDICTION_FEATURES)):
+        values = [v[feature_idx] for v in vectors]
+        mean = sum(values) / len(values)
+        variance = sum((value - mean) ** 2 for value in values) / len(values)
+        std = variance ** 0.5
+        if std == 0:
+            std = 1.0
+        means.append(mean)
+        stds.append(std)
+
+    normalized = [
+        [(vector[i] - means[i]) / stds[i] for i in range(len(PREDICTION_FEATURES))]
+        for vector in vectors
+    ]
+    target_idx = PREDICTION_TARGET_TO_INDEX[target]
+    historical_target_z = [
+        abs((vector[target_idx] - means[target_idx]) / stds[target_idx])
+        for vector in vectors
+    ]
+    anomaly_threshold = max(2.0, _percentile(historical_target_z, 0.95))
+
+    k = max(2, min(6, len(normalized) // 6))
+    labels, centroids = _run_kmeans(normalized, k)
+
+    transition_counts = [[0 for _ in range(k)] for _ in range(k)]
+    for i in range(len(labels) - 1):
+        transition_counts[labels[i]][labels[i + 1]] += 1
+
+    current_cluster = labels[-1]
+    current_vector = normalized[-1]
+    step_seconds = _estimate_step_seconds(rows)
+    base_time = _iso_to_datetime(rows[-1]["created_at"]) or datetime.now(timezone.utc)
+
+    predictions = []
+    for step in range(1, horizon + 1):
+        transitions = transition_counts[current_cluster]
+        if any(transitions):
+            next_cluster = max(range(k), key=lambda idx: transitions[idx])
+        else:
+            next_cluster = current_cluster
+
+        current_centroid = centroids[current_cluster]
+        next_centroid = centroids[next_cluster]
+        shifted = [
+            current_vector[i] + (next_centroid[i] - current_centroid[i])
+            for i in range(len(PREDICTION_FEATURES))
+        ]
+        normalized_pred = [
+            (shifted[i] + next_centroid[i]) / 2.0
+            for i in range(len(PREDICTION_FEATURES))
+        ]
+        raw_pred = [
+            normalized_pred[i] * stds[i] + means[i] for i in range(len(PREDICTION_FEATURES))
+        ]
+        raw_pred = _clip_prediction(raw_pred)
+        target_anomaly_score = abs(
+            (raw_pred[target_idx] - means[target_idx]) / stds[target_idx]
+        )
+        is_anomaly = target_anomaly_score >= anomaly_threshold
+
+        predictions.append(
+            {
+                "timestamp": (
+                    base_time.replace(microsecond=0)
+                    + step * timedelta(seconds=step_seconds)
+                ).isoformat(),
+                "temperature": round(raw_pred[0], 2),
+                "turbidity": round(raw_pred[1], 2),
+                "ph": round(raw_pred[2], 2),
+                "tds": round(raw_pred[3], 2),
+                "do": round(raw_pred[4], 2),
+                "cluster": int(next_cluster),
+                "anomaly_score": round(float(target_anomaly_score), 3),
+                "is_anomaly": bool(is_anomaly),
+            }
+        )
+        current_vector = normalized_pred
+        current_cluster = next_cluster
+    predicted_anomaly_count = sum(1 for item in predictions if item["is_anomaly"])
+    history_anomaly_count = sum(
+        1 for score in historical_target_z if score >= anomaly_threshold
+    )
+
+    return {
+        "model": "kmeans_markov_unsupervised",
+        "history_points": len(rows),
+        "step_seconds": step_seconds,
+        "target": target,
+        "anomaly_threshold": round(float(anomaly_threshold), 3),
+        "history_anomaly_count": int(history_anomaly_count),
+        "predicted_anomaly_count": int(predicted_anomaly_count),
+        "predictions": predictions,
+    }, None
+
+
 def _cors(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
@@ -192,6 +418,7 @@ def after_request(response):
 
 @app.route("/api/readings", methods=["OPTIONS"])
 @app.route("/api/readings/latest", methods=["OPTIONS"])
+@app.route("/api/predictions", methods=["OPTIONS"])
 @app.route("/api/gps", methods=["OPTIONS"])
 @app.route("/api/gps/latest", methods=["OPTIONS"])
 @app.route("/api/db/details", methods=["OPTIONS"])
@@ -215,6 +442,7 @@ def root():
                 "post_reading": "/api/readings",
                 "latest_reading": "/api/readings/latest",
                 "history": "/api/readings?limit=50",
+                "predictions": "/api/predictions?horizon=24&limit_history=all&source=sensor&target=temperature",
                 "post_gps": "/api/gps",
                 "latest_gps": "/api/gps/latest",
                 "db_details": "/api/db/details",
@@ -316,6 +544,102 @@ def get_reading_history():
             conn.close()
 
     return jsonify({"count": len(rows), "readings": [_serialize_reading(row) for row in rows]})
+
+
+@app.get("/api/predictions")
+def get_predictions():
+    horizon_raw = request.args.get("horizon", "24")
+    limit_raw = request.args.get("limit_history", "all")
+    history_preview_raw = request.args.get("history_preview", "16")
+    source = request.args.get("source", "sensor")
+    target = _normalize_target(request.args.get("target", "temperature"))
+
+    try:
+        horizon = max(1, min(96, int(horizon_raw)))
+    except ValueError:
+        horizon = 24
+    use_all_history = str(limit_raw).strip().lower() in {"all", "*", "max"}
+    try:
+        limit = None if use_all_history else max(20, min(5000, int(limit_raw)))
+    except ValueError:
+        limit = None
+    try:
+        history_preview = max(0, min(120, int(history_preview_raw)))
+    except ValueError:
+        history_preview = 16
+
+    if source != "sensor":
+        return jsonify(
+            {
+                "error": "Predictions currently support source=sensor only.",
+                "predictions": [],
+            }
+        ), 400
+    source_filter = "sensor"
+
+    with DB_LOCK:
+        conn = _get_db_connection()
+        try:
+            if limit is None:
+                rows = conn.execute(
+                    """
+                    SELECT *
+                    FROM telemetry
+                    WHERE source = ?
+                    ORDER BY id DESC
+                    """,
+                    (source_filter,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT *
+                    FROM telemetry
+                    WHERE source = ?
+                    ORDER BY id DESC
+                    LIMIT ?
+                    """,
+                    (source_filter, limit),
+                ).fetchall()
+        finally:
+            conn.close()
+
+    if not rows:
+        return jsonify(
+            {
+                "error": "No historical readings available for predictions.",
+                "predictions": [],
+            }
+        ), 404
+
+    rows = list(reversed(rows))
+    model_out, err = _build_predictions(rows, horizon, target)
+    if err:
+        return jsonify({"error": err, "predictions": []}), 400
+
+    last = rows[-1]
+    history_context = (
+        [_serialize_reading(row) for row in rows[-history_preview:]]
+        if history_preview > 0
+        else []
+    )
+    return jsonify(
+        {
+            "model": model_out["model"],
+            "source": source_filter,
+            "history_points": model_out["history_points"],
+            "horizon": horizon,
+            "step_seconds": model_out["step_seconds"],
+            "target": model_out["target"],
+            "anomaly_threshold": model_out["anomaly_threshold"],
+            "history_anomaly_count": model_out["history_anomaly_count"],
+            "predicted_anomaly_count": model_out["predicted_anomaly_count"],
+            "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            "last_observation": _serialize_reading(last),
+            "history_context": history_context,
+            "predictions": model_out["predictions"],
+        }
+    )
 
 
 @app.post("/api/gps")

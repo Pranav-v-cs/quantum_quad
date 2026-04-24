@@ -71,6 +71,58 @@ export default function DashboardView() {
         </div>
       </section>
 
+      <section className="predictions-section">
+        <div className="section-card">
+          <div className="section-card-head">
+            <div>
+              <h3 className="section-title" style={{ fontSize: "26px" }} data-i18n="predictionsTitle">Predictions</h3>
+              <div className="section-sub" id="predictionsMeta" data-i18n="predictionsSub">Forecast generated from historical sensor data</div>
+            </div>
+            <div className="predictions-controls">
+              <div className="prediction-control">
+                <label htmlFor="predictionTargetSelect" data-i18n="predictionTargetLabel">Predict metric</label>
+                <select id="predictionTargetSelect"></select>
+              </div>
+              <div className="prediction-control">
+                <label htmlFor="predictionHorizonSelect" data-i18n="predictionHorizonLabel">Forecast points</label>
+                <select id="predictionHorizonSelect"></select>
+              </div>
+              <div className="prediction-control">
+                <label htmlFor="predictionHistorySelect" data-i18n="predictionHistoryLabel">Past points</label>
+                <select id="predictionHistorySelect"></select>
+              </div>
+            </div>
+          </div>
+
+          <div className="chart-shell">
+            <canvas id="predictionsChart"></canvas>
+          </div>
+
+          <div className="predictions-grid" id="predictionsStats">
+            <div className="prediction-stat">
+              <span className="k" data-i18n="predictionsSelected">Selected value</span>
+              <strong id="predStatSelected">--</strong>
+            </div>
+            <div className="prediction-stat">
+              <span className="k" data-i18n="min">Min</span>
+              <strong id="predStatMin">--</strong>
+            </div>
+            <div className="prediction-stat">
+              <span className="k" data-i18n="max">Max</span>
+              <strong id="predStatMax">--</strong>
+            </div>
+            <div className="prediction-stat">
+              <span className="k" data-i18n="avg">Avg</span>
+              <strong id="predStatAvg">--</strong>
+            </div>
+            <div className="prediction-stat">
+              <span className="k" data-i18n="predictionsAnomalies">Anomalies</span>
+              <strong id="predStatAnomalies">--</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section>
         <div className="section-head">
           <div>

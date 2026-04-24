@@ -4,6 +4,8 @@ export function initDashboard() {
     const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:9999").replace(/\/$/, "");
     const SENSOR_POLL_MS = 10000;
     const DASHBOARD_REFRESH_SECONDS = Math.round(SENSOR_POLL_MS / 1000);
+    const DEFAULT_PREDICTION_HORIZON = 24;
+    const DEFAULT_PREDICTION_HISTORY_CONTEXT_POINTS = 16;
     const PONDS_STORAGE_KEY = "qq_ponds";
     const ponds = (() => {
       try {
@@ -102,6 +104,9 @@ export function initDashboard() {
         demoHint: "Use your account email and password to continue.",
         loginError: "Enter a valid email and password with at least 4 characters.",
         secondsRefresh: "s refresh", historicalTrends: "Historical trends", recentAlerts: "Recent alerts",
+        predictionsTitle: "Predictions", predictionsSub: "Forecast generated from historical sensor data",
+        predictionTargetLabel: "Predict metric", predictionHorizonLabel: "Forecast points", predictionHistoryLabel: "Past points",
+        predictionsSelected: "Selected value", predictionsAnomalies: "Anomalies",
         alertsSub: "Threshold and trend based events", alertLog: "Alert log", pondsTitle: "Ponds",
         pondsSub: "Species-aware overview for all monitored stations", addPond: "+ Add pond",
         analytics: "Analytics", analyticsSub: "Daily stats, WQI and rainfall correlation",
@@ -133,6 +138,8 @@ export function initDashboard() {
         demoHint: "தொடர உங்கள் கணக்கு மின்னஞ்சல் மற்றும் கடவுச்சொல்லைப் பயன்படுத்தவும்.",
         loginError: "சரியான மின்னஞ்சல் மற்றும் குறைந்தது 4 எழுத்துகள் கொண்ட கடவுச்சொல்லை உள்ளிடவும்.",
         secondsRefresh: "விநாடி புதுப்பிப்பு", historicalTrends: "வரலாற்று போக்குகள்", recentAlerts: "சமீபத்திய எச்சரிக்கைகள்",
+        predictionsTitle: "முன்கணிப்புகள்", predictionsSub: "வரலாற்று சென்சார் தரவின் அடிப்படையில் உருவாக்கப்பட்ட முன்னறிவிப்பு",
+        predictionTargetLabel: "கணிப்பு அளவுரு", predictionHorizonLabel: "முன்கணிப்பு புள்ளிகள்", predictionHistoryLabel: "கடந்த புள்ளிகள்",
         alertsSub: "வரம்பு மற்றும் போக்கு அடிப்படையிலான நிகழ்வுகள்", alertLog: "எச்சரிக்கை பதிவு", pondsTitle: "குளங்கள்",
         pondsSub: "அனைத்து கண்காணிப்பு நிலையங்களின் இன அடிப்படையிலான காட்சி", addPond: "+ குளம் சேர்க்க",
         analytics: "பகுப்பாய்வு", analyticsSub: "தினசரி புள்ளிவிவரங்கள், WQI மற்றும் மழை தொடர்பு",
@@ -164,6 +171,8 @@ export function initDashboard() {
         demoHint: "जारी रखने के लिए अपने खाते का ईमेल और पासवर्ड उपयोग करें।",
         loginError: "वैध ईमेल और कम से कम 4 अक्षरों का पासवर्ड दर्ज करें।",
         secondsRefresh: "सेकंड रिफ्रेश", historicalTrends: "ऐतिहासिक रुझान", recentAlerts: "हाल के अलर्ट",
+        predictionsTitle: "पूर्वानुमान", predictionsSub: "ऐतिहासिक सेंसर डेटा से बनाया गया अनुमान",
+        predictionTargetLabel: "कौन सा मान", predictionHorizonLabel: "भविष्य बिंदु", predictionHistoryLabel: "पिछले बिंदु",
         alertsSub: "सीमा और रुझान आधारित घटनाएं", alertLog: "अलर्ट लॉग", pondsTitle: "तालाब",
         pondsSub: "सभी मॉनिटर किए गए स्टेशनों का प्रजाति-आधारित अवलोकन", addPond: "+ तालाब जोड़ें",
         analytics: "एनालिटिक्स", analyticsSub: "दैनिक आँकड़े, WQI और वर्षा संबंध",
@@ -195,6 +204,8 @@ export function initDashboard() {
         demoHint: "ಮುಂದುವರಿಸಲು ನಿಮ್ಮ ಖಾತೆಯ ಇಮೇಲ್ ಮತ್ತು ಪಾಸ್ವರ್ಡ್ ಬಳಸಿ.",
         loginError: "ಮಾನ್ಯ ಇಮೇಲ್ ಮತ್ತು ಕನಿಷ್ಠ 4 ಅಕ್ಷರಗಳ ಪಾಸ್ವರ್ಡ್ ನಮೂದಿಸಿ.",
         secondsRefresh: "ಸೆಕೆಂಡ್ ರಿಫ್ರೆಶ್", historicalTrends: "ಐತಿಹಾಸಿಕ ಪ್ರವೃತ್ತಿಗಳು", recentAlerts: "ಇತ್ತೀಚಿನ ಎಚ್ಚರಿಕೆಗಳು",
+        predictionsTitle: "ಭವಿಷ್ಯವಾಣಿ", predictionsSub: "ಐತಿಹಾಸಿಕ ಸೆನ್ಸರ್ ಡೇಟಾ ಆಧರಿಸಿದ ಮುನ್ನೋಟ",
+        predictionTargetLabel: "ಯಾವ ಮಾಪನ", predictionHorizonLabel: "ಭವಿಷ್ಯ ಬಿಂದುಗಳು", predictionHistoryLabel: "ಹಿಂದಿನ ಬಿಂದುಗಳು",
         alertsSub: "ಮಿತಿ ಮತ್ತು ಪ್ರವೃತ್ತಿ ಆಧಾರಿತ ಘಟನೆಗಳು", alertLog: "ಎಚ್ಚರಿಕೆ ಲಾಗ್", pondsTitle: "ಕೊಳಗಳು",
         pondsSub: "ಎಲ್ಲಾ ಮೇಲ್ವಿಚಾರಣೆಯಲ್ಲಿರುವ ಕೇಂದ್ರಗಳ ಪ್ರಜಾತಿ ಆಧಾರಿತ ಅವಲೋಕನ", addPond: "+ ಕೊಳ ಸೇರಿಸಿ",
         analytics: "ವಿಶ್ಲೇಷಣೆ", analyticsSub: "ದೈನಂದಿನ ಅಂಕಿಅಂಶಗಳು, WQI ಮತ್ತು ಮಳೆ ಸಂಬಂಧ",
@@ -227,8 +238,26 @@ export function initDashboard() {
     const SIDEBAR_MAX = 430;
     const SIDEBAR_DEFAULT = 356;
     let trendChart;
+    let predictionsChart;
     let sensorPollInterval;
     let hasLiveSensorData = false;
+    let predictionsTarget = "temperature";
+    let predictionHorizon = DEFAULT_PREDICTION_HORIZON;
+    let predictionHistoryPreview = DEFAULT_PREDICTION_HISTORY_CONTEXT_POINTS;
+    let predictionHistoryContext = [];
+    let predictionsData = [];
+    let predictionsMetaInfo = {
+      history_points: 0,
+      step_seconds: 0,
+      generated_at: null,
+      target: "temperature",
+      horizon: DEFAULT_PREDICTION_HORIZON,
+      anomaly_threshold: null,
+      predicted_anomaly_count: 0,
+      error: null
+    };
+    const predictionHorizonOptions = [12, 24, 36];
+    const predictionHistoryOptions = [8, 16, 24, 32];
 
     const chartConfig = {
       "1h": { points: 12, stepMinutes: 5, variance: 0.04 },
@@ -254,6 +283,47 @@ export function initDashboard() {
         dots: '<svg viewBox="0 0 24 24"><path d="M8 16c0-1.1.9-2 2-2"></path><path d="M12 19c0-1.1.9-2 2-2"></path><path d="M12 13c0-1.1.9-2 2-2"></path><path d="M8 10c0-1.1.9-2 2-2"></path><path d="M15 7c0-1.1.9-2 2-2"></path></svg>'
       };
       return icons[name] || icons.grid;
+    }
+
+    function getPredictionSensorByKey(key) {
+      return sensors.find((sensor) => sensor.key === key) || sensors[0];
+    }
+
+    function getPredictionTargetLabel(key) {
+      if (key === "temperature") return t("temperature");
+      if (key === "do") return t("dissolvedOxygen");
+      return getPredictionSensorByKey(key).name;
+    }
+
+    function populatePredictionTargetSelector() {
+      const selector = document.getElementById("predictionTargetSelect");
+      if (!selector) return;
+      const options = sensors.map((sensor) => {
+        const selected = sensor.key === predictionsTarget ? " selected" : "";
+        return `<option value="${sensor.key}"${selected}>${getPredictionTargetLabel(sensor.key)}</option>`;
+      }).join("");
+      selector.innerHTML = options;
+      selector.value = predictionsTarget;
+    }
+
+    function populatePredictionHorizonSelector() {
+      const selector = document.getElementById("predictionHorizonSelect");
+      if (!selector) return;
+      selector.innerHTML = predictionHorizonOptions.map((value) => {
+        const selected = value === predictionHorizon ? " selected" : "";
+        return `<option value="${value}"${selected}>${value}</option>`;
+      }).join("");
+      selector.value = String(predictionHorizon);
+    }
+
+    function populatePredictionHistorySelector() {
+      const selector = document.getElementById("predictionHistorySelect");
+      if (!selector) return;
+      selector.innerHTML = predictionHistoryOptions.map((value) => {
+        const selected = value === predictionHistoryPreview ? " selected" : "";
+        return `<option value="${value}"${selected}>${value}</option>`;
+      }).join("");
+      selector.value = String(predictionHistoryPreview);
     }
 
     function getStatus(sensor) {
@@ -439,6 +509,7 @@ export function initDashboard() {
           renderInsights();
           updateTrendChart();
           updateClock();
+          pollPredictionsData();
         }
       } catch {
         // Keep mock data when backend/sensor data is unavailable.
@@ -638,6 +709,210 @@ export function initDashboard() {
       }
     }
 
+    function setPredictionStat(id, value, unit, decimals = 2) {
+      const node = document.getElementById(id);
+      if (!node) return;
+      if (!Number.isFinite(value)) {
+        node.textContent = "--";
+        return;
+      }
+      node.textContent = `${Number(value).toFixed(decimals)}${unit ? ` ${unit}` : ""}`;
+    }
+
+    function updatePredictionStats() {
+      const metric = getPredictionSensorByKey(predictionsTarget);
+      const series = predictionsData
+        .map((point) => Number(point[predictionsTarget]))
+        .filter((value) => Number.isFinite(value));
+      const last = series[series.length - 1];
+      const min = series.length ? Math.min(...series) : NaN;
+      const max = series.length ? Math.max(...series) : NaN;
+      const avg = series.length ? series.reduce((sum, value) => sum + value, 0) / series.length : NaN;
+      const anomalyCount = Number(predictionsMetaInfo.predicted_anomaly_count) || 0;
+
+      setPredictionStat("predStatSelected", last, metric.unit, metric.decimals ?? 2);
+      setPredictionStat("predStatMin", min, metric.unit, metric.decimals ?? 2);
+      setPredictionStat("predStatMax", max, metric.unit, metric.decimals ?? 2);
+      setPredictionStat("predStatAvg", avg, metric.unit, metric.decimals ?? 2);
+      const anomalyNode = document.getElementById("predStatAnomalies");
+      if (anomalyNode) anomalyNode.textContent = `${anomalyCount}/${series.length || 0}`;
+    }
+
+    function updatePredictionsChart() {
+      const metaNode = document.getElementById("predictionsMeta");
+      if (!metaNode) return;
+      const metric = getPredictionSensorByKey(predictionsTarget);
+      const metricLabel = getPredictionTargetLabel(predictionsTarget);
+
+      if (!predictionsData.length) {
+        metaNode.textContent = predictionsMetaInfo.error || "Waiting for enough history to generate predictions";
+        updatePredictionStats();
+        if (predictionsChart) {
+          predictionsChart.data.labels = [];
+          predictionsChart.data.datasets[0].data = [];
+          predictionsChart.data.datasets[1].data = [];
+          predictionsChart.data.datasets[2].data = [];
+          predictionsChart.update();
+        }
+        return;
+      }
+
+      const historyLabels = predictionHistoryContext.map((point) => {
+        const dt = new Date(point.created_at || point.timestamp);
+        if (Number.isNaN(dt.getTime())) return "--:--";
+        return `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+      });
+      const predictionLabels = predictionsData.map((point) => {
+        const dt = new Date(point.timestamp);
+        if (Number.isNaN(dt.getTime())) return "--:--";
+        return `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+      });
+      const labels = [...historyLabels, ...predictionLabels];
+      const historyValues = predictionHistoryContext.map((point) => Number(point[predictionsTarget]));
+      const predictionValues = predictionsData.map((point) => Number(point[predictionsTarget]));
+      const historicalLine = [...historyValues, ...new Array(predictionValues.length).fill(null)];
+      const forecastLine = [...new Array(historyValues.length).fill(null), ...predictionValues];
+      const anomalyPoints = [
+        ...new Array(historyValues.length).fill(null),
+        ...predictionsData.map((point) => {
+        if (!point.is_anomaly) return null;
+        const value = Number(point[predictionsTarget]);
+        return Number.isFinite(value) ? value : null;
+        }),
+      ];
+
+      const historyCount = predictionsMetaInfo.history_points || 0;
+      const stepSeconds = predictionsMetaInfo.step_seconds || 0;
+      const threshold = Number.isFinite(Number(predictionsMetaInfo.anomaly_threshold))
+        ? Number(predictionsMetaInfo.anomaly_threshold).toFixed(2)
+        : "--";
+      metaNode.textContent = `${metricLabel} forecast • next ${predictionHorizon} points • ${historyCount} history points used • ${historyValues.length} shown • ${stepSeconds}s step • anomaly z>${threshold}`;
+
+      updatePredictionStats();
+
+      if (!predictionsChart) {
+        predictionsChart = new Chart(document.getElementById("predictionsChart"), {
+          type: "line",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: `Predicted ${metricLabel}`,
+                data: forecastLine,
+                borderColor: "#2f7f90",
+                backgroundColor: "rgba(47,127,144,0.14)",
+                fill: true,
+                borderWidth: 2.2,
+                pointRadius: 2,
+                pointHoverRadius: 4,
+                tension: 0.32
+              },
+              {
+                label: `Recent ${metricLabel}`,
+                data: historicalLine,
+                borderColor: "#8a9892",
+                backgroundColor: "transparent",
+                borderDash: [6, 4],
+                fill: false,
+                borderWidth: 2,
+                pointRadius: 2,
+                pointHoverRadius: 3,
+                tension: 0.2
+              },
+              {
+                label: "Anomaly",
+                data: anomalyPoints,
+                borderColor: "#c24a54",
+                backgroundColor: "#c24a54",
+                showLine: false,
+                pointRadius: 4,
+                pointHoverRadius: 5
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: true } },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: { color: "#74817b", font: { size: 11 }, maxTicksLimit: 8 }
+              },
+              y: {
+                grid: { color: "rgba(221,216,207,0.7)" },
+                ticks: { color: "#74817b", font: { size: 11 } }
+              }
+            }
+          }
+        });
+      } else {
+        predictionsChart.data.labels = labels;
+        predictionsChart.data.datasets[0].label = `Predicted ${metricLabel}`;
+        predictionsChart.data.datasets[0].data = forecastLine;
+        predictionsChart.data.datasets[1].label = `Recent ${metricLabel}`;
+        predictionsChart.data.datasets[1].data = historicalLine;
+        predictionsChart.data.datasets[2].data = anomalyPoints;
+        predictionsChart.update();
+      }
+    }
+
+    async function pollPredictionsData() {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/predictions?horizon=${predictionHorizon}&limit_history=all&history_preview=${predictionHistoryPreview}&source=sensor&target=${encodeURIComponent(predictionsTarget)}`,
+          {
+          method: "GET",
+          headers: { Accept: "application/json" }
+          }
+        );
+        const payload = await response.json();
+        if (!response.ok) {
+          predictionHistoryContext = [];
+          predictionsData = [];
+          predictionsMetaInfo = {
+            history_points: 0,
+            step_seconds: 0,
+            generated_at: null,
+            target: predictionsTarget,
+            horizon: predictionHorizon,
+            anomaly_threshold: null,
+            predicted_anomaly_count: 0,
+            error: payload?.error || "Prediction API unavailable"
+          };
+          updatePredictionsChart();
+          return;
+        }
+        predictionHistoryContext = Array.isArray(payload?.history_context) ? payload.history_context : [];
+        predictionsData = Array.isArray(payload?.predictions) ? payload.predictions : [];
+        predictionsMetaInfo = {
+          history_points: Number(payload?.history_points) || 0,
+          step_seconds: Number(payload?.step_seconds) || 0,
+          generated_at: payload?.generated_at || null,
+          target: payload?.target || predictionsTarget,
+          horizon: Number(payload?.horizon) || predictionHorizon,
+          anomaly_threshold: Number(payload?.anomaly_threshold),
+          predicted_anomaly_count: Number(payload?.predicted_anomaly_count) || 0,
+          error: null
+        };
+        updatePredictionsChart();
+      } catch {
+        predictionHistoryContext = [];
+        predictionsData = [];
+        predictionsMetaInfo = {
+          history_points: 0,
+          step_seconds: 0,
+          generated_at: null,
+          target: predictionsTarget,
+          horizon: predictionHorizon,
+          anomaly_threshold: null,
+          predicted_anomaly_count: 0,
+          error: "Prediction service not reachable"
+        };
+        updatePredictionsChart();
+      }
+    }
+
     function selectSensor(index) {
       selectedSensor = index;
       renderReadings();
@@ -694,6 +969,9 @@ export function initDashboard() {
       document.getElementById("profileLanguage").textContent = document.getElementById("languageSelect").selectedOptions[0].textContent;
       const errorBox = document.getElementById("loginError");
       if (errorBox.textContent) errorBox.textContent = t("loginError");
+      populatePredictionTargetSelector();
+      populatePredictionHorizonSelector();
+      populatePredictionHistorySelector();
     }
 
     function switchView(view) {
@@ -988,6 +1266,7 @@ export function initDashboard() {
       renderPonds();
       renderInsights();
       updateTrendChart();
+      updatePredictionsChart();
     });
     document.getElementById("authLanguageSelect").addEventListener("change", (event) => {
       currentLang = event.target.value;
@@ -998,7 +1277,29 @@ export function initDashboard() {
       renderPonds();
       renderInsights();
       updateTrendChart();
+      updatePredictionsChart();
     });
+    const predictionTargetSelect = document.getElementById("predictionTargetSelect");
+    if (predictionTargetSelect) {
+      predictionTargetSelect.addEventListener("change", (event) => {
+        predictionsTarget = event.target.value || "temperature";
+        pollPredictionsData();
+      });
+    }
+    const predictionHorizonSelect = document.getElementById("predictionHorizonSelect");
+    if (predictionHorizonSelect) {
+      predictionHorizonSelect.addEventListener("change", (event) => {
+        predictionHorizon = Number(event.target.value) || DEFAULT_PREDICTION_HORIZON;
+        pollPredictionsData();
+      });
+    }
+    const predictionHistorySelect = document.getElementById("predictionHistorySelect");
+    if (predictionHistorySelect) {
+      predictionHistorySelect.addEventListener("change", (event) => {
+        predictionHistoryPreview = Number(event.target.value) || DEFAULT_PREDICTION_HISTORY_CONTEXT_POINTS;
+        pollPredictionsData();
+      });
+    }
     window.downloadCSV = downloadCSV;
     window.downloadExcel = downloadExcel;
     window.generateReport = generateReport;
@@ -1018,10 +1319,15 @@ export function initDashboard() {
     renderPonds();
     renderInsights();
     updateTrendChart();
+    updatePredictionsChart();
     updateClock();
     switchView("dashboard");
     pollSensorData();
-    sensorPollInterval = setInterval(pollSensorData, SENSOR_POLL_MS);
+    pollPredictionsData();
+    sensorPollInterval = setInterval(() => {
+      pollSensorData();
+      pollPredictionsData();
+    }, SENSOR_POLL_MS);
     if (localStorage.getItem(AUTH_KEY) === "1") showApp();
     else showLogin();
     return () => {
@@ -1039,6 +1345,7 @@ export function initDashboard() {
       window.removeEventListener("keydown", onEscape);
       window.removeEventListener("resize", onResize);
       if (trendChart) trendChart.destroy();
+      if (predictionsChart) predictionsChart.destroy();
       delete window.downloadCSV;
       delete window.downloadExcel;
       delete window.generateReport;

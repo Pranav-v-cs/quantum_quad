@@ -758,6 +758,63 @@
       color: var(--text);
     }
 
+    .predictions-section {
+      margin-bottom: 18px;
+    }
+
+    .predictions-grid {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+    }
+
+    .prediction-stat {
+      padding: 12px;
+      border: 1px solid #e8e2d8;
+      border-radius: 12px;
+      background: rgba(248, 247, 244, 0.9);
+      display: grid;
+      gap: 4px;
+    }
+
+    .prediction-stat .k {
+      font-size: 12px;
+      color: #65766f;
+    }
+
+    .prediction-stat strong {
+      font-size: 18px;
+      color: var(--text);
+    }
+
+    .predictions-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .prediction-control {
+      display: grid;
+      gap: 6px;
+    }
+
+    .predictions-controls label {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .predictions-controls select {
+      border: 1px solid #d8d2c7;
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+
     .alerts-list,
     .insights-list {
       display: grid;

@@ -161,9 +161,3 @@ Important:
 - No DB rows:
   - Check backend logs for `POST /api/readings` errors
   - Validate payload numeric fields: `temperature`, `turbidity`, `ph`, `tds`, `do`
-
-## Git Hygiene
-
-- `.env` is ignored by `.gitignore`
-- Keep secrets out of source files and commits
-- Use placeholders in code and real values in local-only config

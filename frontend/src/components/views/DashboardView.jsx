@@ -6,7 +6,7 @@ export default function DashboardView() {
       <section className="page-header">
         <div>
           <h1 className="page-title" data-i18n="pageDashboard">Dashboard</h1>
-          <div className="page-sub"><span data-i18n="lastUpdated">Last updated</span>: <strong id="lastUpdated">18:11:33</strong></div>
+          <div className="page-sub"><span data-i18n="lastUpdated">Last updated</span>: <strong id="lastUpdated">--:--:--</strong></div>
         </div>
 
         <div className="header-actions">
@@ -22,7 +22,7 @@ export default function DashboardView() {
         <div className="section-head">
           <div>
             <h2 className="section-title" data-i18n="liveReadings">Live readings</h2>
-            <div className="section-sub" id="liveReadingMeta">Pond Alpha · QQ-dbafa5-A</div>
+            <div className="section-sub" id="liveReadingMeta">No pond selected</div>
           </div>
           <div className="refresh-note">
             <span className="mini-dot"></span>
@@ -38,7 +38,7 @@ export default function DashboardView() {
           <div className="section-card-head">
             <div>
               <h3 className="section-title" style={{ fontSize: "26px" }} data-i18n="historicalTrends">Historical trends</h3>
-              <div className="section-sub" id="trendSubtitle">Temperature selected · last 24h</div>
+              <div className="section-sub" id="trendSubtitle">No data available</div>
             </div>
             <div className="range-tabs">
               <button className="range-btn" data-range="1h">1h</button>
@@ -52,10 +52,10 @@ export default function DashboardView() {
           </div>
 
           <div className="stats-row">
-            <span>Min: <strong id="statMin">24.1</strong></span>
-            <span>Max: <strong id="statMax">31.4</strong></span>
-            <span>Avg: <strong id="statAvg">27.8</strong></span>
-            <span>Trend: <strong id="statTrend">Rising</strong></span>
+            <span>Min: <strong id="statMin">--</strong></span>
+            <span>Max: <strong id="statMax">--</strong></span>
+            <span>Avg: <strong id="statAvg">--</strong></span>
+            <span>Trend: <strong id="statTrend">--</strong></span>
           </div>
         </div>
 
@@ -77,50 +77,11 @@ export default function DashboardView() {
             <h2 className="section-title" data-i18n="pondsTitle">Ponds</h2>
             <div className="section-sub" data-i18n="pondsSub">Species-aware overview for all monitored stations</div>
           </div>
-          <button className="chip-btn" data-i18n="addPond">+ Add pond</button>
+          <button className="chip-btn" onClick={() => window.addPond?.()} data-i18n="addPond">+ Add pond</button>
         </div>
         <div className="ponds-grid" id="pondsGrid"></div>
       </section>
 
-      <section className="footer-grid">
-        <div className="section-card">
-          <div className="section-card-head">
-            <div>
-              <h3 className="section-title" style={{ fontSize: "26px" }} data-i18n="analytics">Analytics</h3>
-              <div className="section-sub" data-i18n="analyticsSub">Daily stats, WQI and rainfall correlation</div>
-            </div>
-          </div>
-          <div className="insights-list" id="insightsList"></div>
-        </div>
-
-        <div className="section-card">
-          <div className="section-card-head">
-            <div>
-              <h3 className="section-title" style={{ fontSize: "26px" }} data-i18n="systemHealth">System health</h3>
-              <div className="section-sub" data-i18n="systemHealthSub">Device and connectivity status</div>
-            </div>
-            <span className="status-pill safe" data-i18n="online">Online</span>
-          </div>
-          <div className="pond-meta">
-            <div className="pond-metric">
-              <div className="k" data-i18n="deviceStatus">Device status</div>
-              <div className="v" data-i18n="espConnected">ESP32 connected</div>
-            </div>
-            <div className="pond-metric">
-              <div className="k" data-i18n="lastPacket">Last packet</div>
-              <div className="v" data-i18n="twoSecondsAgo">2 seconds ago</div>
-            </div>
-            <div className="pond-metric">
-              <div className="k" data-i18n="batteryLevel">Battery level</div>
-              <div className="v">86%</div>
-            </div>
-            <div className="pond-metric">
-              <div className="k">WiFi RSSI</div>
-              <div className="v">-63 dBm</div>
-            </div>
-          </div>
-        </div>
-      </section>
     </section>
   );
 }

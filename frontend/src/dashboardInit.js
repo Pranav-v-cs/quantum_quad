@@ -4,35 +4,24 @@ export function initDashboard() {
     const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:9999").replace(/\/$/, "");
     const SENSOR_POLL_MS = 10000;
     const DASHBOARD_REFRESH_SECONDS = Math.round(SENSOR_POLL_MS / 1000);
-    const ponds = [
-      {
-        species: "Tilapia",
-        name: "Pond Alpha",
-        station: "QQ-dbafa5-A",
-        status: "critical",
-        wqi: 48,
-        temp: "37.3 C",
-        do: "1.48 mg/L"
-      },
-      {
-        species: "Rohu",
-        name: "Pond Beta",
-        station: "QQ-rohu-22",
-        status: "safe",
-        wqi: 85,
-        temp: "28.1 C",
-        do: "6.92 mg/L"
-      },
-      {
-        species: "Catla",
-        name: "Pond Gamma",
-        station: "QQ-cat-11",
-        status: "warning",
-        wqi: 68,
-        temp: "31.0 C",
-        do: "4.71 mg/L"
+    const PONDS_STORAGE_KEY = "qq_ponds";
+    const ponds = (() => {
+      try {
+        const raw = localStorage.getItem(PONDS_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((pond) => {
+          if (!pond || typeof pond !== "object") return false;
+          const name = String(pond.name || "").toLowerCase();
+          const station = String(pond.station || "").toLowerCase();
+          if (name === "pond alpha" || name === "pond beta" || name === "pond gamma") return false;
+          if (station === "qq-dbafa5-a" || station === "qq-rohu-22" || station === "qq-cat-11") return false;
+          return true;
+        });
+      } catch {
+        return [];
       }
-    ];
+    })();
 
     const sensors = [
       {
@@ -40,7 +29,7 @@ export function initDashboard() {
         name: "pH",
         shortName: "pH",
         unit: "",
-        value: 5.8,
+        value: null,
         safeRange: [6.5, 8.5],
         absoluteRange: [4, 10],
         decimals: 2,
@@ -52,7 +41,7 @@ export function initDashboard() {
         name: "Dissolved Oxygen",
         shortName: "Dissolved Oxygen",
         unit: "mg/L",
-        value: 1.48,
+        value: null,
         safeRange: [5, 20],
         absoluteRange: [0, 15],
         decimals: 2,
@@ -64,7 +53,7 @@ export function initDashboard() {
         name: "Turbidity",
         shortName: "Turbidity",
         unit: "NTU",
-        value: 205,
+        value: null,
         safeRange: [0, 30],
         absoluteRange: [0, 150],
         decimals: 0,
@@ -76,7 +65,7 @@ export function initDashboard() {
         name: "Temperature",
         shortName: "Temperature",
         unit: "C",
-        value: 37.31,
+        value: null,
         safeRange: [20, 30],
         absoluteRange: [10, 40],
         decimals: 2,
@@ -88,7 +77,7 @@ export function initDashboard() {
         name: "TDS",
         shortName: "TDS",
         unit: "ppm",
-        value: 3077,
+        value: null,
         safeRange: [0, 1000],
         absoluteRange: [0, 2000],
         decimals: 0,
@@ -97,51 +86,9 @@ export function initDashboard() {
       }
     ];
 
-    const alerts = [
-      {
-        level: "critical",
-        title: { en: "DO crashed below safe threshold", ta: "DO பாதுகாப்பு வரம்புக்கு கீழே சரிந்தது", hi: "DO सुरक्षित सीमा से नीचे गिर गया", kn: "DO ಸುರಕ್ಷಿತ ಮಿತಿಗಿಂತ ಕೆಳಗೆ ಕುಸಿದಿದೆ" },
-        copy: { en: "Pond Alpha dropped to 1.48 mg/L during the latest cycle. Fish stress risk is high.", ta: "சமீபத்திய சுழற்சியில் பாண்ட் ஆல்பா 1.48 mg/L வரை குறைந்தது. மீன்களுக்கு அழுத்த ஆபத்து அதிகம்.", hi: "हालिया चक्र में पॉन्ड अल्फा 1.48 mg/L तक गिर गया। मछलियों पर तनाव का जोखिम अधिक है।", kn: "ಇತ್ತೀಚಿನ ಚಕ್ರದಲ್ಲಿ ಪಾಂಡ್ ಆಲ್ಫಾ 1.48 mg/L ಗೆ ಕುಸಿದಿದೆ. ಮೀನು ಒತ್ತಡದ ಅಪಾಯ ಹೆಚ್ಚು." },
-        time: "2 min ago"
-      },
-      {
-        level: "critical",
-        title: { en: "Temperature exceeded safe band", ta: "வெப்பநிலை பாதுகாப்பு வரம்பை மீறியது", hi: "तापमान सुरक्षित सीमा से ऊपर गया", kn: "ತಾಪಮಾನ ಸುರಕ್ಷಿತ ಮಿತಿಯನ್ನು ಮೀರಿದೆ" },
-        copy: { en: "Water temperature rose beyond 30 C and is now outside the ideal species range.", ta: "நீர் வெப்பநிலை 30 C ஐ கடந்துள்ளது; இது இனத்திற்கான சிறந்த வரம்பை மீறியுள்ளது.", hi: "पानी का तापमान 30 C से ऊपर चला गया है और अब आदर्श प्रजाति सीमा से बाहर है।", kn: "ನೀರಿನ ತಾಪಮಾನ 30 C ಗಿಂತ ಮೇಲೇರಿದ್ದು ಈಗ ಆದರ್ಶ ಜಾತಿ ಮಿತಿಯಿಂದ ಹೊರಗಿದೆ." },
-        time: "5 min ago"
-      },
-      {
-        level: "warning",
-        title: { en: "Turbidity spike after rainfall", ta: "மழைக்குப் பின் குழப்பம் அதிகரிப்பு", hi: "बारिश के बाद टर्बिडिटी बढ़ी", kn: "ಮಳೆಯ ನಂತರ ಮಂಕು ಏರಿಕೆ" },
-        copy: { en: "Runoff likely caused a visibility drop. Check feed response and pond inflow.", ta: "மேற்பரப்பு ஓட்டம் காரணமாக தெளிவு குறைந்திருக்கலாம். தீவன எதிர்வினையும் நீர் வரவையும் சரிபார்க்கவும்.", hi: "रनऑफ के कारण दृश्यता घटी हो सकती है। फीड प्रतिक्रिया और तालाब में पानी के प्रवाह की जाँच करें।", kn: "ರನ್‌ಆಫ್‌ನಿಂದ ದೃಶ್ಯತೆ ಕಡಿಮೆಯಾಗಿರಬಹುದು. ಆಹಾರ ಪ್ರತಿಕ್ರಿಯೆ ಮತ್ತು ಕೊಳದ ನೀರಿನ ಪ್ರವಾಹ ಪರಿಶೀಲಿಸಿ." },
-        time: "18 min ago"
-      },
-      {
-        level: "safe",
-        title: { en: "Pond Beta remains stable", ta: "பாண்ட் பேட்டா நிலையாக உள்ளது", hi: "पॉन्ड बीटा स्थिर है", kn: "ಪಾಂಡ್ ಬೇಟಾ ಸ್ಥಿರವಾಗಿದೆ" },
-        copy: { en: "All five sensors stayed within recommended range for the last 6 hours.", ta: "கடைசி 6 மணிநேரமாக அனைத்து ஐந்து சென்சார்களும் பரிந்துரைக்கப்பட்ட வரம்பில் உள்ளன.", hi: "पिछले 6 घंटों से सभी पाँच सेंसर अनुशंसित सीमा में हैं।", kn: "ಕಳೆದ 6 ಗಂಟೆಗಳಿನಿಂದ ಎಲ್ಲಾ ಐದು ಸಂವೇದಕಗಳು ಶಿಫಾರಸು ಮಾಡಿದ ಮಿತಿಯಲ್ಲಿವೆ." },
-        time: "34 min ago"
-      }
-    ];
+    const alerts = [];
 
-    const insights = [
-      {
-        title: { en: "Water Quality Index", ta: "நீர்தர குறியீடு", hi: "जल गुणवत्ता सूचकांक", kn: "ನೀರಿನ ಗುಣಮಟ್ಟ ಸೂಚ್ಯಂಕ" },
-        copy: { en: "Pond Alpha is at 48/100. Pond Beta is currently the healthiest station at 85/100.", ta: "பாண்ட் ஆல்பா 48/100 ஆக உள்ளது. பாண்ட் பேட்டா தற்போது 85/100 மதிப்புடன் சிறந்த நிலையில் உள்ளது.", hi: "पॉन्ड अल्फा 48/100 पर है। पॉन्ड बीटा अभी 85/100 के साथ सबसे स्वस्थ स्टेशन है।", kn: "ಪಾಂಡ್ ಆಲ್ಫಾ 48/100 ನಲ್ಲಿ ಇದೆ. ಪಾಂಡ್ ಬೇಟಾ ಈಗ 85/100 ಅಂಕಗಳೊಂದಿಗೆ ಅತ್ಯಂತ ಆರೋಗ್ಯಕರ ಕೇಂದ್ರವಾಗಿದೆ." }
-      },
-      {
-        title: { en: "Rainfall correlation", ta: "மழை தொடர்பு", hi: "वर्षा संबंध", kn: "ಮಳೆಯ ಸಂಬಂಧ" },
-        copy: { en: "Turbidity is 12% higher on days with light rain. Consider flagging post-rain readings in reports.", ta: "லேசான மழை பெய்யும் நாட்களில் குழப்பம் 12% அதிகமாக உள்ளது. மழைக்குப் பிறகான அளவீடுகளை அறிக்கையில் குறிக்கலாம்.", hi: "हल्की बारिश वाले दिनों में टर्बिडिटी 12% अधिक है। रिपोर्ट में बारिश के बाद की रीडिंग को अलग से चिह्नित करें।", kn: "ಸಣ್ಣ ಮಳೆಯ ದಿನಗಳಲ್ಲಿ ಮಂಕು 12% ಹೆಚ್ಚು ಇರುತ್ತದೆ. ವರದಿಯಲ್ಲಿ ಮಳೆಯ ನಂತರದ ಓದುಗಳನ್ನು ಪ್ರತ್ಯೇಕವಾಗಿ ಗುರುತಿಸಿ." }
-      },
-      {
-        title: { en: "Daily averages", ta: "தினசரி சராசரிகள்", hi: "दैनिक औसत", kn: "ದೈನಂದಿನ ಸರಾಸರಿ" },
-        copy: { en: "Average pH today is 6.2, temperature is 32.8 C, and TDS remains above the preferred band.", ta: "இன்றைய சராசரி pH 6.2, வெப்பநிலை 32.8 C, மேலும் TDS விரும்பத்தக்க வரம்பை விட மேலே உள்ளது.", hi: "आज का औसत pH 6.2 है, तापमान 32.8 C है, और TDS अभी भी पसंदीदा सीमा से ऊपर है।", kn: "ಇಂದಿನ ಸರಾಸರಿ pH 6.2, ತಾಪಮಾನ 32.8 C, ಮತ್ತು TDS ಇನ್ನೂ ಬಯಸಿದ ಮಿತಿಗಿಂತ ಮೇಲಿದೆ." }
-      },
-      {
-        title: { en: "Compliance view", ta: "இணக்க காட்சி", hi: "अनुपालन दृश्य", kn: "ಅನುಸರಣೆ ನೋಟ" },
-        copy: { en: "Use safe bands here as the baseline for your WHO or BIS comparison module and PDF summary.", ta: "WHO அல்லது BIS ஒப்பீட்டு தொகுதி மற்றும் PDF சுருக்கத்திற்கான அடிப்படையாக இங்குள்ள பாதுகாப்பு வரம்புகளை பயன்படுத்தவும்.", hi: "यहां दिए गए सुरक्षित बैंड को WHO या BIS तुलना मॉड्यूल और PDF सारांश के आधार के रूप में उपयोग करें।", kn: "ಇಲ್ಲಿನ ಸುರಕ್ಷಿತ ಮಿತಿಗಳನ್ನು WHO ಅಥವಾ BIS ಹೋಲಿಕೆ ಘಟಕ ಮತ್ತು PDF ಸಾರಾಂಶಕ್ಕೆ ಆಧಾರವಾಗಿ ಬಳಸಿ." }
-      }
-    ];
+    const insights = [];
 
     const i18n = {
       en: {
@@ -151,8 +98,8 @@ export function initDashboard() {
         logout: "Logout",
         loginTitle: "Sign in", loginSub: "Access your pond dashboard and live water quality updates.",
         emailLabel: "Email", passwordLabel: "Password", signIn: "Sign in",
-        emailPlaceholder: "farmer@quantumquad.com", passwordPlaceholder: "Enter password",
-        demoHint: "Demo login: use any valid email and password with at least 4 characters.",
+        emailPlaceholder: "name@example.com", passwordPlaceholder: "Enter password",
+        demoHint: "Use your account email and password to continue.",
         loginError: "Enter a valid email and password with at least 4 characters.",
         secondsRefresh: "s refresh", historicalTrends: "Historical trends", recentAlerts: "Recent alerts",
         alertsSub: "Threshold and trend based events", alertLog: "Alert log", pondsTitle: "Ponds",
@@ -182,8 +129,8 @@ export function initDashboard() {
         logout: "வெளியேறு",
         loginTitle: "உள்நுழை", loginSub: "உங்கள் குள டாஷ்போர்டு மற்றும் நேரடி நீர்தர புதுப்பிப்புகளை அணுகவும்.",
         emailLabel: "மின்னஞ்சல்", passwordLabel: "கடவுச்சொல்", signIn: "உள்நுழை",
-        emailPlaceholder: "farmer@quantumquad.com", passwordPlaceholder: "கடவுச்சொல்லை உள்ளிடவும்",
-        demoHint: "டெமோ உள்நுழைவு: ஏதாவது சரியான மின்னஞ்சல் மற்றும் குறைந்தது 4 எழுத்துகள் கொண்ட கடவுச்சொல் பயன்படுத்தவும்.",
+        emailPlaceholder: "name@example.com", passwordPlaceholder: "கடவுச்சொல்லை உள்ளிடவும்",
+        demoHint: "தொடர உங்கள் கணக்கு மின்னஞ்சல் மற்றும் கடவுச்சொல்லைப் பயன்படுத்தவும்.",
         loginError: "சரியான மின்னஞ்சல் மற்றும் குறைந்தது 4 எழுத்துகள் கொண்ட கடவுச்சொல்லை உள்ளிடவும்.",
         secondsRefresh: "விநாடி புதுப்பிப்பு", historicalTrends: "வரலாற்று போக்குகள்", recentAlerts: "சமீபத்திய எச்சரிக்கைகள்",
         alertsSub: "வரம்பு மற்றும் போக்கு அடிப்படையிலான நிகழ்வுகள்", alertLog: "எச்சரிக்கை பதிவு", pondsTitle: "குளங்கள்",
@@ -213,8 +160,8 @@ export function initDashboard() {
         logout: "लॉग आउट",
         loginTitle: "साइन इन", loginSub: "अपने तालाब डैशबोर्ड और लाइव जल गुणवत्ता अपडेट देखें।",
         emailLabel: "ईमेल", passwordLabel: "पासवर्ड", signIn: "साइन इन",
-        emailPlaceholder: "farmer@quantumquad.com", passwordPlaceholder: "पासवर्ड दर्ज करें",
-        demoHint: "डेमो लॉगिन: कोई भी वैध ईमेल और कम से कम 4 अक्षरों का पासवर्ड उपयोग करें।",
+        emailPlaceholder: "name@example.com", passwordPlaceholder: "पासवर्ड दर्ज करें",
+        demoHint: "जारी रखने के लिए अपने खाते का ईमेल और पासवर्ड उपयोग करें।",
         loginError: "वैध ईमेल और कम से कम 4 अक्षरों का पासवर्ड दर्ज करें।",
         secondsRefresh: "सेकंड रिफ्रेश", historicalTrends: "ऐतिहासिक रुझान", recentAlerts: "हाल के अलर्ट",
         alertsSub: "सीमा और रुझान आधारित घटनाएं", alertLog: "अलर्ट लॉग", pondsTitle: "तालाब",
@@ -244,8 +191,8 @@ export function initDashboard() {
         logout: "ಲಾಗ್ ಔಟ್",
         loginTitle: "ಸೈನ್ ಇನ್", loginSub: "ನಿಮ್ಮ ಕೊಳ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್ ಮತ್ತು ಲೈವ್ ನೀರಿನ ಗುಣಮಟ್ಟ ನವೀಕರಣಗಳನ್ನು ಪ್ರವೇಶಿಸಿ.",
         emailLabel: "ಇಮೇಲ್", passwordLabel: "ಪಾಸ್ವರ್ಡ್", signIn: "ಸೈನ್ ಇನ್",
-        emailPlaceholder: "farmer@quantumquad.com", passwordPlaceholder: "ಪಾಸ್ವರ್ಡ್ ನಮೂದಿಸಿ",
-        demoHint: "ಡೆಮೋ ಲಾಗಿನ್: ಯಾವುದೇ ಮಾನ್ಯ ಇಮೇಲ್ ಮತ್ತು ಕನಿಷ್ಠ 4 ಅಕ್ಷರಗಳ ಪಾಸ್ವರ್ಡ್ ಬಳಸಿ.",
+        emailPlaceholder: "name@example.com", passwordPlaceholder: "ಪಾಸ್ವರ್ಡ್ ನಮೂದಿಸಿ",
+        demoHint: "ಮುಂದುವರಿಸಲು ನಿಮ್ಮ ಖಾತೆಯ ಇಮೇಲ್ ಮತ್ತು ಪಾಸ್ವರ್ಡ್ ಬಳಸಿ.",
         loginError: "ಮಾನ್ಯ ಇಮೇಲ್ ಮತ್ತು ಕನಿಷ್ಠ 4 ಅಕ್ಷರಗಳ ಪಾಸ್ವರ್ಡ್ ನಮೂದಿಸಿ.",
         secondsRefresh: "ಸೆಕೆಂಡ್ ರಿಫ್ರೆಶ್", historicalTrends: "ಐತಿಹಾಸಿಕ ಪ್ರವೃತ್ತಿಗಳು", recentAlerts: "ಇತ್ತೀಚಿನ ಎಚ್ಚರಿಕೆಗಳು",
         alertsSub: "ಮಿತಿ ಮತ್ತು ಪ್ರವೃತ್ತಿ ಆಧಾರಿತ ಘಟನೆಗಳು", alertLog: "ಎಚ್ಚರಿಕೆ ಲಾಗ್", pondsTitle: "ಕೊಳಗಳು",
@@ -310,6 +257,7 @@ export function initDashboard() {
     }
 
     function getStatus(sensor) {
+      if (!Number.isFinite(sensor.value)) return "safe";
       const [safeMin, safeMax] = sensor.safeRange;
       const [absMin, absMax] = sensor.absoluteRange;
       if (sensor.value < absMin || sensor.value > absMax) return "critical";
@@ -326,11 +274,50 @@ export function initDashboard() {
       return status === "safe" ? t("safe") : status === "warning" ? t("warning") : t("critical");
     }
 
+    function statusFromWqi(wqi) {
+      if (wqi >= 80) return "safe";
+      if (wqi >= 60) return "warning";
+      return "critical";
+    }
+
+    function savePonds() {
+      try {
+        localStorage.setItem(PONDS_STORAGE_KEY, JSON.stringify(ponds));
+      } catch {
+        // Ignore storage write failures.
+      }
+    }
+
+    async function getLatestGps() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/gps/latest`, {
+          method: "GET",
+          headers: { Accept: "application/json" }
+        });
+        if (!response.ok) return null;
+        const payload = await response.json();
+        const gps = payload?.gps;
+        if (!gps) return null;
+        const lat = Number(gps.lat);
+        const lng = Number(gps.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        return {
+          lat: Number(lat.toFixed(6)),
+          lng: Number(lng.toFixed(6)),
+          created_at: gps.created_at || null
+        };
+      } catch {
+        return null;
+      }
+    }
+
     function formatSensorValue(sensor) {
+      if (!Number.isFinite(sensor.value)) return "--";
       return sensor.decimals === 0 ? Math.round(sensor.value).toString() : sensor.value.toFixed(sensor.decimals);
     }
 
     function rangeMarker(sensor) {
+      if (!Number.isFinite(sensor.value)) return 0;
       const [min, max] = sensor.absoluteRange;
       return Math.max(0, Math.min(100, ((sensor.value - min) / (max - min)) * 100));
     }
@@ -338,7 +325,7 @@ export function initDashboard() {
     function renderSummaries() {
       const healthy = ponds.filter((pond) => pond.status === "safe").length;
       const warning = ponds.filter((pond) => pond.status === "warning").length;
-      const activeAlerts = 212;
+      const activeAlerts = alerts.length;
 
       const cards = [
         { label: t("totalPonds"), value: ponds.length, tone: "blue", icon: "ponds" },
@@ -415,17 +402,21 @@ export function initDashboard() {
         sensor.value = sensor.decimals === 0 ? Math.round(val) : Number(val.toFixed(sensor.decimals));
       }
 
-      const temp = getSensorByKey("temperature");
-      const dissolvedOxygen = getSensorByKey("do");
-      ponds[0].temp = `${temp.value.toFixed(1)} C`;
-      ponds[0].do = `${dissolvedOxygen.value.toFixed(2)} mg/L`;
+      const primaryPond = ponds[0];
+      if (primaryPond) {
+        const temp = getSensorByKey("temperature");
+        const dissolvedOxygen = getSensorByKey("do");
+        primaryPond.temp = `${temp.value.toFixed(1)} C`;
+        primaryPond.do = `${dissolvedOxygen.value.toFixed(2)} mg/L`;
 
-      const statuses = sensors.map((sensor) => getStatus(sensor));
-      ponds[0].status = statuses.includes("critical")
-        ? "critical"
-        : statuses.includes("warning")
-          ? "warning"
-          : "safe";
+        const statuses = sensors.map((sensor) => getStatus(sensor));
+        primaryPond.status = statuses.includes("critical")
+          ? "critical"
+          : statuses.includes("warning")
+            ? "warning"
+            : "safe";
+        savePonds();
+      }
 
       return true;
     }
@@ -455,7 +446,19 @@ export function initDashboard() {
     }
 
     function renderPonds() {
-      document.getElementById("pondsGrid").innerHTML = ponds.map((pond) => `
+      const pondsGrid = document.getElementById("pondsGrid");
+      if (!pondsGrid) return;
+
+      if (!ponds.length) {
+        const emptyMarkup = `<div class="section-sub">No ponds added yet. Use ${t("addPond")} to create one.</div>`;
+        pondsGrid.innerHTML = emptyMarkup;
+        const emptyPage = document.getElementById("pondsGridPage");
+        if (emptyPage) emptyPage.innerHTML = emptyMarkup;
+        updateProfileStats();
+        return;
+      }
+
+      pondsGrid.innerHTML = ponds.map((pond) => `
         <article class="pond-card">
           <div class="pond-top">
             <div>
@@ -482,16 +485,23 @@ export function initDashboard() {
               <div class="k">${t("dissolvedOxygen")}</div>
               <div class="v">${pond.do}</div>
             </div>
+            <div class="pond-metric">
+              <div class="k">GPS</div>
+              <div class="v">${Number.isFinite(pond.lat) && Number.isFinite(pond.lng) ? `${pond.lat.toFixed(6)}, ${pond.lng.toFixed(6)}` : "--"}</div>
+            </div>
           </div>
         </article>
       `).join("");
 
       const pondsPage = document.getElementById("pondsGridPage");
-      if (pondsPage) pondsPage.innerHTML = document.getElementById("pondsGrid").innerHTML;
+      if (pondsPage) pondsPage.innerHTML = pondsGrid.innerHTML;
+      updateProfileStats();
     }
 
     function renderInsights() {
-      document.getElementById("insightsList").innerHTML = insights.map((item) => `
+      const insightsList = document.getElementById("insightsList");
+      if (!insightsList) return;
+      insightsList.innerHTML = insights.map((item) => `
         <div class="insight-item">
           <div class="insight-badge">i</div>
           <div>
@@ -516,13 +526,12 @@ export function initDashboard() {
     }
 
     function makeSeries(sensor, rangeKey) {
+      if (!Number.isFinite(sensor.value)) return [];
       const cfg = chartConfig[rangeKey];
       const values = [];
-      let current = sensor.seriesBase;
+      let current = sensor.value;
 
       for (let i = 0; i < cfg.points; i++) {
-        const drift = sensor.key === "temperature" ? 0.03 : sensor.key === "do" ? -0.02 : 0.01;
-        current += (Math.random() - 0.5 + drift) * sensor.seriesBase * cfg.variance;
         values.push(Number(current.toFixed(sensor.decimals === 0 ? 0 : 2)));
       }
 
@@ -537,6 +546,25 @@ export function initDashboard() {
 
     function updateTrendChart() {
       const sensor = sensors[selectedSensor];
+      if (!Number.isFinite(sensor.value)) {
+        document.getElementById("trendSubtitle").textContent = "No data available";
+        document.getElementById("statMin").textContent = "--";
+        document.getElementById("statMax").textContent = "--";
+        document.getElementById("statAvg").textContent = "--";
+        document.getElementById("statTrend").textContent = "--";
+        const primaryPond = ponds[0];
+        document.getElementById("liveReadingMeta").textContent = primaryPond
+          ? `${primaryPond.name} · ${primaryPond.station}`
+          : "No pond selected";
+
+        if (trendChart) {
+          trendChart.data.labels = [];
+          trendChart.data.datasets[0].data = [];
+          trendChart.update();
+        }
+        return;
+      }
+
       const status = getStatus(sensor);
       const labels = makeLabels(selectedRange);
       const series = makeSeries(sensor, selectedRange);
@@ -547,7 +575,10 @@ export function initDashboard() {
       const trend = series[series.length - 1] > series[0] ? t("rising") : t("falling");
 
       document.getElementById("trendSubtitle").textContent = `${sensor.name} ${t("selectedLast")} ${selectedRange}`;
-      document.getElementById("liveReadingMeta").textContent = `${ponds[0].name} · ${ponds[0].station}`;
+      const primaryPond = ponds[0];
+      document.getElementById("liveReadingMeta").textContent = primaryPond
+        ? `${primaryPond.name} · ${primaryPond.station}`
+        : "No pond added yet";
       document.getElementById("statMin").previousSibling.textContent = `${t("min")}: `;
       document.getElementById("statMax").previousSibling.textContent = `${t("max")}: `;
       document.getElementById("statAvg").previousSibling.textContent = `${t("avg")}: `;
@@ -627,6 +658,14 @@ export function initDashboard() {
     }
 
     function renderAlerts() {
+      if (!alerts.length) {
+        const empty = `<div class="section-sub">No alerts yet.</div>`;
+        document.getElementById("alertsList").innerHTML = empty;
+        const alertsPage = document.getElementById("alertsListPage");
+        if (alertsPage) alertsPage.innerHTML = empty;
+        return;
+      }
+
       const markup = alerts.map((alert) => `
         <div class="alert-item">
           <div class="alert-badge ${alert.level}">${alert.level === 'safe' ? 'OK' : alert.level === 'warning' ? '!' : '!!'}</div>
@@ -740,27 +779,92 @@ export function initDashboard() {
 
     function generateReport() {
       const messages = {
-        en: "Daily report generated. You can replace this with your PDF export flow.",
-        ta: "தினசரி அறிக்கை உருவாக்கப்பட்டது. இதை உங்கள் PDF ஏற்றுமதி செயலோட்டத்துடன் இணைக்கலாம்.",
-        hi: "दैनिक रिपोर्ट तैयार हो गई। इसे आप अपने PDF एक्सपोर्ट फ्लो से बदल सकते हैं।",
-        kn: "ದಿನಸಿ ವರದಿ ಸಿದ್ಧವಾಗಿದೆ. ಇದನ್ನು ನಿಮ್ಮ PDF ಎಕ್ಸ್ಪೋರ್ಟ್ ಪ್ರಕ್ರಿಯೆಗೆ ಜೋಡಿಸಬಹುದು."
+        en: "Daily report generated.",
+        ta: "தினசரி அறிக்கை உருவாக்கப்பட்டது.",
+        hi: "दैनिक रिपोर्ट तैयार हो गई।",
+        kn: "ದಿನಸಿ ವರದಿ ಸಿದ್ಧವಾಗಿದೆ."
       };
       alert(messages[currentLang]);
     }
 
+    async function addPond() {
+      const nameInput = prompt("Pond name");
+      if (nameInput === null) return;
+      const name = nameInput.trim();
+      if (!name) {
+        alert("Pond name is required.");
+        return;
+      }
+
+      const speciesInput = prompt("Species", "General");
+      if (speciesInput === null) return;
+      const species = speciesInput.trim() || "General";
+
+      const stationInput = prompt("Station ID");
+      if (stationInput === null) return;
+      const station = stationInput.trim();
+      if (!station) {
+        alert("Station ID is required.");
+        return;
+      }
+
+      const wqiInput = prompt("WQI (0-100)");
+      if (wqiInput === null) return;
+      const parsedWqi = Number(wqiInput);
+      if (!Number.isFinite(parsedWqi)) {
+        alert("WQI must be a valid number.");
+        return;
+      }
+      const wqi = Math.max(0, Math.min(100, Math.round(parsedWqi)));
+      const temp = getSensorByKey("temperature");
+      const dissolvedOxygen = getSensorByKey("do");
+      const latestGps = await getLatestGps();
+
+      ponds.push({
+        species,
+        name,
+        station,
+        status: statusFromWqi(wqi),
+        wqi,
+        temp: Number.isFinite(temp?.value) ? `${temp.value.toFixed(1)} C` : "--",
+        do: Number.isFinite(dissolvedOxygen?.value) ? `${dissolvedOxygen.value.toFixed(2)} mg/L` : "--",
+        lat: latestGps?.lat ?? null,
+        lng: latestGps?.lng ?? null,
+        gps_timestamp: latestGps?.created_at ?? null
+      });
+      savePonds();
+      renderSummaries();
+      renderPonds();
+      updateTrendChart();
+    }
+
     function updateUserProfile(email) {
-      const username = email.split("@")[0] || "Demo Farmer";
+      const username = email.split("@")[0] || "";
       const displayName = username
         .split(/[._-]/)
         .filter(Boolean)
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(" ");
-      const finalName = displayName || "Demo Farmer";
-      const finalEmail = email || "farmer@quantumquad.com";
+      const finalName = displayName || "-";
+      const finalEmail = email || "-";
       document.getElementById("topProfileName").textContent = finalName;
       document.getElementById("topProfileEmail").textContent = finalEmail;
       document.getElementById("profilePageName").textContent = finalName;
       document.getElementById("profilePageEmail").textContent = finalEmail;
+      const avatarValue = finalName === "-" ? "-" : finalName.charAt(0).toUpperCase();
+      document.querySelectorAll(".avatar").forEach((node) => {
+        node.textContent = avatarValue;
+      });
+    }
+
+    function updateProfileStats() {
+      const stationEl = document.getElementById("profileActiveStations");
+      if (stationEl) stationEl.textContent = String(ponds.length);
+      const speciesEl = document.getElementById("profileSelectedSpecies");
+      if (speciesEl) {
+        const uniqueSpecies = [...new Set(ponds.map((pond) => String(pond.species || "").trim()).filter(Boolean))];
+        speciesEl.textContent = uniqueSpecies.length ? uniqueSpecies.join(", ") : "-";
+      }
     }
 
     function showLogin() {
@@ -898,6 +1002,7 @@ export function initDashboard() {
     window.downloadCSV = downloadCSV;
     window.downloadExcel = downloadExcel;
     window.generateReport = generateReport;
+    window.addPond = addPond;
 
     document.getElementById("loginForm").addEventListener("submit", handleLogin);
     document.getElementById("logoutBtn").addEventListener("click", logout);
@@ -937,5 +1042,6 @@ export function initDashboard() {
       delete window.downloadCSV;
       delete window.downloadExcel;
       delete window.generateReport;
+      delete window.addPond;
     };
 }

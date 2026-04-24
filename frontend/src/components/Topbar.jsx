@@ -19,10 +19,10 @@ export default function Topbar() {
 
         <div className="profile">
           <div className="profile-text">
-            <div className="profile-name" id="topProfileName">Demo Farmer</div>
-            <div className="profile-email" id="topProfileEmail">farmer@quantumquad.com</div>
+            <div className="profile-name" id="topProfileName">-</div>
+            <div className="profile-email" id="topProfileEmail">-</div>
           </div>
-          <div className="avatar">D</div>
+          <div className="avatar">-</div>
         </div>
       </div>
     </header>

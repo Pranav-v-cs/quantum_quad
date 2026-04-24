@@ -22,6 +22,8 @@ Backend runs on `http://localhost:9999`.
 - Table: `telemetry`
 - Stores both `mock` and `sensor` readings
 - Retention: keeps latest `5000` rows, deletes older rows automatically after inserts
+- GPS table: `gps_readings`
+- GPS retention: keeps latest `10000` rows
 
 ## API
 
@@ -51,3 +53,34 @@ Expected JSON payload:
 
 - Returns history for charts/debugging.
 - Optional: `source=sensor` or `source=mock`.
+
+### `POST /api/gps`
+
+Expected JSON payload:
+
+```json
+{
+  "lat": 11.016844,
+  "lng": 76.955833,
+  "raw_line": "{\"lat\":11.016844,\"lng\":76.955833}"
+}
+```
+
+### `GET /api/gps/latest`
+
+- Returns latest GPS fix.
+- Frontend add-pond flow auto-reads this endpoint.
+
+## GPS Serial Bridge
+
+`gps_bridge.py` reads JSON GPS lines from serial and pushes to backend.
+
+```bash
+python gps_bridge.py --port /dev/cu.usbmodem1101 --baud 9600
+```
+
+Arduino serial output should be JSON per line, for example:
+
+```json
+{"lat":11.016844,"lng":76.955833}
+```

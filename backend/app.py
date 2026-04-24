@@ -10,6 +10,7 @@ app = Flask(__name__)
 DB_LOCK = Lock()
 DB_PATH = Path(__file__).resolve().parent / "data" / "telemetry.db"
 MAX_TELEMETRY_ROWS = 5000
+MAX_GPS_ROWS = 10000
 
 
 def _get_db_connection():
@@ -34,6 +35,17 @@ def _init_db():
                     tds REAL NOT NULL,
                     dissolved_oxygen REAL NOT NULL,
                     source TEXT NOT NULL CHECK (source IN ('mock', 'sensor')),
+                    raw_line TEXT,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS gps_readings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    lat REAL NOT NULL,
+                    lng REAL NOT NULL,
                     raw_line TEXT,
                     created_at TEXT NOT NULL
                 )
@@ -112,6 +124,30 @@ def _serialize_reading(row):
     }
 
 
+def _insert_gps(conn, *, lat, lng, raw_line=None):
+    created_at = datetime.now(timezone.utc).isoformat()
+    cur = conn.execute(
+        """
+        INSERT INTO gps_readings (lat, lng, raw_line, created_at)
+        VALUES (?, ?, ?, ?)
+        """,
+        (float(lat), float(lng), raw_line, created_at),
+    )
+    return cur.lastrowid
+
+
+def _serialize_gps(row):
+    if not row:
+        return None
+    return {
+        "id": row["id"],
+        "lat": row["lat"],
+        "lng": row["lng"],
+        "raw_line": row["raw_line"],
+        "created_at": row["created_at"],
+    }
+
+
 def _prune_telemetry(conn):
     conn.execute(
         """
@@ -124,6 +160,21 @@ def _prune_telemetry(conn):
         )
         """,
         (MAX_TELEMETRY_ROWS,),
+    )
+
+
+def _prune_gps(conn):
+    conn.execute(
+        """
+        DELETE FROM gps_readings
+        WHERE id NOT IN (
+            SELECT id
+            FROM gps_readings
+            ORDER BY id DESC
+            LIMIT ?
+        )
+        """,
+        (MAX_GPS_ROWS,),
     )
 
 
@@ -141,6 +192,8 @@ def after_request(response):
 
 @app.route("/api/readings", methods=["OPTIONS"])
 @app.route("/api/readings/latest", methods=["OPTIONS"])
+@app.route("/api/gps", methods=["OPTIONS"])
+@app.route("/api/gps/latest", methods=["OPTIONS"])
 @app.route("/api/db/details", methods=["OPTIONS"])
 @app.route("/health", methods=["OPTIONS"])
 def options_handler():
@@ -162,6 +215,8 @@ def root():
                 "post_reading": "/api/readings",
                 "latest_reading": "/api/readings/latest",
                 "history": "/api/readings?limit=50",
+                "post_gps": "/api/gps",
+                "latest_gps": "/api/gps/latest",
                 "db_details": "/api/db/details",
             },
         }
@@ -261,6 +316,51 @@ def get_reading_history():
             conn.close()
 
     return jsonify({"count": len(rows), "readings": [_serialize_reading(row) for row in rows]})
+
+
+@app.post("/api/gps")
+def post_gps():
+    payload = request.get_json(silent=True) or {}
+    lat = payload.get("lat")
+    lng = payload.get("lng")
+    raw_line = payload.get("raw_line")
+
+    if lat is None or lng is None:
+        return jsonify({"error": "Missing required fields: lat, lng"}), 400
+
+    try:
+        lat = float(lat)
+        lng = float(lng)
+    except (TypeError, ValueError):
+        return jsonify({"error": "lat and lng must be numeric"}), 400
+
+    if not (-90 <= lat <= 90):
+        return jsonify({"error": "lat must be between -90 and 90"}), 400
+    if not (-180 <= lng <= 180):
+        return jsonify({"error": "lng must be between -180 and 180"}), 400
+
+    with DB_LOCK:
+        conn = _get_db_connection()
+        try:
+            row_id = _insert_gps(conn, lat=lat, lng=lng, raw_line=raw_line)
+            _prune_gps(conn)
+            conn.commit()
+            row = conn.execute("SELECT * FROM gps_readings WHERE id = ?", (row_id,)).fetchone()
+        finally:
+            conn.close()
+
+    return jsonify({"status": "ok", "gps": _serialize_gps(row)}), 201
+
+
+@app.get("/api/gps/latest")
+def get_latest_gps():
+    with DB_LOCK:
+        conn = _get_db_connection()
+        try:
+            row = conn.execute("SELECT * FROM gps_readings ORDER BY id DESC LIMIT 1").fetchone()
+        finally:
+            conn.close()
+    return jsonify({"gps": _serialize_gps(row)})
 
 
 @app.get("/api/db/details")

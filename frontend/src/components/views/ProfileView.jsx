@@ -12,10 +12,10 @@ export default function ProfileView() {
       <section className="profile-grid">
         <div className="section-card">
           <div className="profile-hero">
-            <div className="avatar">D</div>
+            <div className="avatar">-</div>
             <div>
-              <div className="profile-name" id="profilePageName">Demo Farmer</div>
-              <div className="profile-email" id="profilePageEmail">farmer@quantumquad.com</div>
+              <div className="profile-name" id="profilePageName">-</div>
+              <div className="profile-email" id="profilePageEmail">-</div>
             </div>
           </div>
           <div className="profile-list">
@@ -29,7 +29,7 @@ export default function ProfileView() {
             </div>
             <div className="profile-item">
               <div className="k" data-i18n="farmLocation">Farm location</div>
-              <div className="v">Chennai, Tamil Nadu</div>
+              <div className="v" id="profileFarmLocation">-</div>
             </div>
           </div>
         </div>
@@ -43,7 +43,7 @@ export default function ProfileView() {
           <div className="profile-list">
             <div className="profile-item">
               <div className="k" data-i18n="activeStations">Active stations</div>
-              <div className="v">3</div>
+              <div className="v" id="profileActiveStations">0</div>
             </div>
             <div className="profile-item">
               <div className="k" data-i18n="alertMode">Alert mode</div>
@@ -51,7 +51,7 @@ export default function ProfileView() {
             </div>
             <div className="profile-item">
               <div className="k" data-i18n="selectedSpecies">Selected species</div>
-              <div className="v">Tilapia, Rohu, Catla</div>
+              <div className="v" id="profileSelectedSpecies">-</div>
             </div>
           </div>
         </div>

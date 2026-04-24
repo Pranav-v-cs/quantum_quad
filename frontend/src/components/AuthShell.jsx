@@ -16,7 +16,7 @@ export default function AuthShell() {
         <form className="auth-form" id="loginForm">
           <div className="auth-field">
             <label htmlFor="loginEmail" data-i18n="emailLabel">Email</label>
-            <input className="auth-input" id="loginEmail" type="email" data-i18n-placeholder="emailPlaceholder" placeholder="farmer@quantumquad.com" required />
+            <input className="auth-input" id="loginEmail" type="email" data-i18n-placeholder="emailPlaceholder" placeholder="name@example.com" required />
           </div>
           <div className="auth-field">
             <label htmlFor="loginPassword" data-i18n="passwordLabel">Password</label>
@@ -32,7 +32,7 @@ export default function AuthShell() {
             <option value="kn">ಕನ್ನಡ</option>
           </select>
         </div>
-        <div className="auth-meta" data-i18n="demoHint">Demo login: use any valid email and password with at least 4 characters.</div>
+        <div className="auth-meta" data-i18n="demoHint">Use your account email and password to continue.</div>
         <div className="auth-error" id="loginError"></div>
       </div>
     </section>

@@ -1,17 +1,169 @@
-# quantum_quad
+# Quantum Quad
 
-Starter project structure:
+Water quality monitoring project with:
 
-- `frontend/` - frontend app
-- `backend/` - backend app
-- `ino files/` - hardware/firmware related files
+- Sensor firmware (`ino files/main.ino`) that reads pH, turbidity, TDS, DO, temperature
+- ESP32 bridge firmware (`ino files/esp32_interfacing.ino`) that posts readings to backend
+- Flask backend (`backend/`) that stores telemetry in SQLite and serves APIs
+- Vite frontend dashboard (`frontend/`) that visualizes live readings
 
-## Setup
+## Repository Structure
 
-1. Copy/update values in `.env` with your local secrets.
-2. Keep `.env` private and never commit real credentials.
-3. Run frontend and backend from their respective folders.
+- `frontend/` React + Vite dashboard
+- `backend/` Flask API + SQLite persistence
+- `ino files/` Arduino + ESP32 firmware files
+- `.env` Local secrets and environment variables (gitignored)
 
-## Security Note
+## Data Flow
 
-Do not share passwords, API keys, or tokens in code, screenshots, or commits.
+1. Arduino (`main.ino`) reads sensor values.
+2. Arduino sends a formatted line over serial.
+3. ESP32 (`esp32_interfacing.ino`) parses the line and sends JSON to backend:
+   - `POST /api/readings`
+4. Backend stores readings in `backend/data/telemetry.db`.
+5. Frontend polls backend every 10 seconds using:
+   - `GET /api/readings/latest?sensor_only=1`
+
+## Prerequisites
+
+- Python 3.10+
+- Node.js 18+
+- Arduino IDE / PlatformIO for firmware flashing
+- ESP32 board support installed in Arduino IDE
+
+## Environment Variables
+
+Root `.env` is for local secrets and credentials.
+
+Current keys:
+
+- `WIFI_SSID`
+- `WIFI_PASSWORD`
+- `DB_HOST`
+- `DB_PORT`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME`
+- `OPENAI_API_KEY`
+- `JWT_SECRET`
+- `APP_ENV`
+- `PORT`
+
+Security guidance:
+
+- Never commit real credentials.
+- Keep `.env` local only.
+- Rotate secrets if they were ever shared in code history.
+
+## Backend Setup (Flask)
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
+
+Backend runs on `http://localhost:9999`.
+
+### Backend API
+
+- `GET /health`
+- `GET /` (service info)
+- `POST /api/readings`
+- `GET /api/readings/latest?sensor_only=1`
+- `GET /api/readings?limit=50&source=sensor`
+- `GET /api/db/details`
+
+### Sample POST Payload
+
+```json
+{
+  "station_id": "QQ-dbafa5-A",
+  "temperature": 29.44,
+  "turbidity": 14,
+  "ph": 6.76,
+  "tds": 97,
+  "do": 3.82,
+  "source": "sensor",
+  "raw_line": "Temperature: 29.44 °C | Turbidity: 14 NTU | pH: 6.76 | TDS: 97 ppm | DO: 3.82 mg/L."
+}
+```
+
+### Database
+
+- SQLite file: `backend/data/telemetry.db`
+- Table: `telemetry`
+- Retention: keeps latest `5000` rows
+- Sources supported: `sensor`, `mock`
+
+## Frontend Setup (React + Vite)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend defaults to backend base URL:
+
+- `http://localhost:9999`
+
+You can override with Vite env variable:
+
+```bash
+VITE_API_BASE_URL=http://localhost:9999 npm run dev
+```
+
+Build for production:
+
+```bash
+npm run build
+npm run preview
+```
+
+## Firmware Notes
+
+### `ino files/main.ino`
+
+- Reads analog and digital sensors
+- Computes values for temperature, turbidity, pH, TDS, and DO
+- Sends serial output for ESP32 bridge
+
+### `ino files/esp32_interfacing.ino`
+
+- Connects to Wi-Fi
+- Parses serial line
+- POSTs parsed readings to Flask backend (`SERVER_URL`)
+
+Important:
+
+- `.env` is not directly readable by Arduino/ESP32 firmware at runtime.
+- If `WIFI_SSID` / `WIFI_PASSWORD` in firmware are placeholders, set real values before flashing, or generate a local ignored header during build.
+
+## Local Run Order
+
+1. Start backend (`python app.py` in `backend/`)
+2. Start frontend (`npm run dev` in `frontend/`)
+3. Flash sensor firmware to Arduino (`main.ino`)
+4. Flash bridge firmware to ESP32 (`esp32_interfacing.ino`)
+5. Confirm backend receives readings at `/api/readings/latest?sensor_only=1`
+
+## Troubleshooting
+
+- Frontend shows stale/mock values:
+  - Check backend is running on port `9999`
+  - Check CORS/network and `VITE_API_BASE_URL`
+- ESP32 not posting:
+  - Verify Wi-Fi credentials and `SERVER_URL`
+  - Ensure ESP32 and backend host are on same LAN
+- No DB rows:
+  - Check backend logs for `POST /api/readings` errors
+  - Validate payload numeric fields: `temperature`, `turbidity`, `ph`, `tds`, `do`
+
+## Git Hygiene
+
+- `.env` is ignored by `.gitignore`
+- Keep secrets out of source files and commits
+- Use placeholders in code and real values in local-only config

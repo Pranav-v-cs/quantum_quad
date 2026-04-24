@@ -3,8 +3,8 @@
 
 HardwareSerial mySerial(2);
 
-const char* WIFI_SSID = "Airtel_selv_4027";
-const char* WIFI_PASS = "air95548";
+const char* WIFI_SSID = "WIFI_SSID_FROM_ENV";
+const char* WIFI_PASS = "WIFI_PASSWORD_FROM_ENV";
 const char* SERVER_URL = "http://192.168.1.14:9999/api/readings";
 const char* STATION_ID = "QQ-dbafa5-A";
 
@@ -97,8 +97,8 @@ void loop() {
 
 HardwareSerial mySerial(2);
 
-const char* WIFI_SSID = "Airtel_selv_4027";
-const char* WIFI_PASS = "air95548";
+const char* WIFI_SSID = "WIFI_SSID_FROM_ENV";
+const char* WIFI_PASS = "WIFI_PASSWORD_FROM_ENV";
 const char* SERVER_URL = "http://192.168.1.14:9999/api/readings";
 const char* STATION_ID = "QQ-dbafa5-A";
 

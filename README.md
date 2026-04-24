@@ -137,10 +137,6 @@ npm run preview
 - Parses serial line
 - POSTs parsed readings to Flask backend (`SERVER_URL`)
 
-Important:
-
-- `.env` is not directly readable by Arduino/ESP32 firmware at runtime.
-- If `WIFI_SSID` / `WIFI_PASSWORD` in firmware are placeholders, set real values before flashing, or generate a local ignored header during build.
 
 ## Local Run Order
 

@@ -3,6 +3,7 @@ import Chart from "chart.js/auto";
 export function initDashboard() {
     const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:9999").replace(/\/$/, "");
     const SENSOR_POLL_MS = 10000;
+    const GPS_POLL_MS = 10000;
     const DASHBOARD_REFRESH_SECONDS = Math.round(SENSOR_POLL_MS / 1000);
     const DEFAULT_PREDICTION_HORIZON = 24;
     const DEFAULT_PREDICTION_HISTORY_CONTEXT_POINTS = 16;
@@ -240,6 +241,7 @@ export function initDashboard() {
     let trendChart;
     let predictionsChart;
     let sensorPollInterval;
+    let gpsPollInterval;
     let hasLiveSensorData = false;
     let predictionsTarget = "temperature";
     let predictionHorizon = DEFAULT_PREDICTION_HORIZON;
@@ -516,6 +518,25 @@ export function initDashboard() {
       }
     }
 
+    async function pollGpsData() {
+      const primaryPond = ponds[0];
+      if (!primaryPond) return;
+
+      const latestGps = await getLatestGps();
+      if (!latestGps) return;
+
+      const latChanged = !Number.isFinite(primaryPond.lat) || Math.abs(primaryPond.lat - latestGps.lat) > 0.000001;
+      const lngChanged = !Number.isFinite(primaryPond.lng) || Math.abs(primaryPond.lng - latestGps.lng) > 0.000001;
+      const timestampChanged = primaryPond.gps_timestamp !== latestGps.created_at;
+      if (!latChanged && !lngChanged && !timestampChanged) return;
+
+      primaryPond.lat = latestGps.lat;
+      primaryPond.lng = latestGps.lng;
+      primaryPond.gps_timestamp = latestGps.created_at ?? null;
+      savePonds();
+      renderPonds();
+    }
+
     function renderPonds() {
       const pondsGrid = document.getElementById("pondsGrid");
       if (!pondsGrid) return;
@@ -529,14 +550,49 @@ export function initDashboard() {
         return;
       }
 
-      pondsGrid.innerHTML = ponds.map((pond) => `
+      function gpsLocationMarkup(pond) {
+        if (!Number.isFinite(pond.lat) || !Number.isFinite(pond.lng)) return "--";
+        const lat = Number(pond.lat.toFixed(6));
+        const lng = Number(pond.lng.toFixed(6));
+        const mapUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+        return `
+          <div class="gps-reading">${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
+          <a class="gps-icon-link" href="${mapUrl}" target="_blank" rel="noopener noreferrer" aria-label="Open Pond location in Google Maps" title="Open Pond location in Google Maps">
+            <span class="gps-pin" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12Z"></path>
+                <circle cx="12" cy="10" r="2.5"></circle>
+              </svg>
+            </span>
+          </a>
+        `;
+      }
+
+      pondsGrid.innerHTML = ponds.map((pond, index) => `
         <article class="pond-card">
           <div class="pond-top">
             <div>
               <div class="pond-species">${pond.species}</div>
               <div class="pond-name">${pond.name}</div>
             </div>
-            <div class="status-pill ${pond.status}">${statusLabel(pond.status)}</div>
+            <div class="pond-top-actions">
+              <div class="status-pill ${pond.status}">${statusLabel(pond.status)}</div>
+              <button
+                class="pond-delete-btn"
+                type="button"
+                title="Delete pond"
+                aria-label="Delete pond"
+                onclick="deletePond(${index})"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 6h18"></path>
+                  <path d="M8 6V4h8v2"></path>
+                  <path d="M6 6l1 14h10l1-14"></path>
+                  <path d="M10 10v7"></path>
+                  <path d="M14 10v7"></path>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div class="pond-meta">
@@ -558,7 +614,7 @@ export function initDashboard() {
             </div>
             <div class="pond-metric">
               <div class="k">GPS</div>
-              <div class="v">${Number.isFinite(pond.lat) && Number.isFinite(pond.lng) ? `${pond.lat.toFixed(6)}, ${pond.lng.toFixed(6)}` : "--"}</div>
+              <div class="v gps-value">${gpsLocationMarkup(pond)}</div>
             </div>
           </div>
         </article>
@@ -1116,6 +1172,18 @@ export function initDashboard() {
       updateTrendChart();
     }
 
+    function deletePond(index) {
+      if (!Number.isInteger(index) || index < 0 || index >= ponds.length) return;
+      const pondName = ponds[index]?.name || "this pond";
+      if (!confirm(`Delete ${pondName}?`)) return;
+
+      ponds.splice(index, 1);
+      savePonds();
+      renderSummaries();
+      renderPonds();
+      updateTrendChart();
+    }
+
     function updateUserProfile(email) {
       const username = email.split("@")[0] || "";
       const displayName = username
@@ -1304,6 +1372,7 @@ export function initDashboard() {
     window.downloadExcel = downloadExcel;
     window.generateReport = generateReport;
     window.addPond = addPond;
+    window.deletePond = deletePond;
 
     document.getElementById("loginForm").addEventListener("submit", handleLogin);
     document.getElementById("logoutBtn").addEventListener("click", logout);
@@ -1328,10 +1397,14 @@ export function initDashboard() {
       pollSensorData();
       pollPredictionsData();
     }, SENSOR_POLL_MS);
+    pollGpsData();
+    sensorPollInterval = setInterval(pollSensorData, SENSOR_POLL_MS);
+    gpsPollInterval = setInterval(pollGpsData, GPS_POLL_MS);
     if (localStorage.getItem(AUTH_KEY) === "1") showApp();
     else showLogin();
     return () => {
       if (sensorPollInterval) clearInterval(sensorPollInterval);
+      if (gpsPollInterval) clearInterval(gpsPollInterval);
       closeMobileSidebar();
       if (sidebarResizer) {
         sidebarResizer.removeEventListener("pointerdown", onSidebarDragStart);
@@ -1350,5 +1423,6 @@ export function initDashboard() {
       delete window.downloadExcel;
       delete window.generateReport;
       delete window.addPond;
+      delete window.deletePond;
     };
 }

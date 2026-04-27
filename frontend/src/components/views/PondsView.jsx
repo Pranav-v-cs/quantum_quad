@@ -15,6 +15,7 @@ export default function PondsView() {
             <h3 className="section-title" style={{ fontSize: "26px" }} data-i18n="pondsTitle">Ponds</h3>
             <div className="section-sub" data-i18n="pondsSub">Species-aware overview for all monitored stations</div>
           </div>
+          <button className="chip-btn" onClick={() => window.addPond?.()} data-i18n="addPond">+ Add pond</button>
         </div>
         <div className="ponds-grid" id="pondsGridPage"></div>
       </section>

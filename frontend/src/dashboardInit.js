@@ -8,7 +8,10 @@ export function initDashboard() {
     const DASHBOARD_REFRESH_SECONDS = Math.round(SENSOR_POLL_MS / 1000);
     const DEFAULT_PREDICTION_HORIZON = 24;
     const DEFAULT_PREDICTION_HISTORY_CONTEXT_POINTS = 16;
+    const ALERT_COOLDOWN_MS = 5 * 60 * 1000;
+    const ALERT_MAX_ITEMS = 80;
     const PONDS_STORAGE_KEY = "qq_ponds";
+    const THRESHOLD_STORAGE_KEY = "qq_threshold_config";
     const ponds = (() => {
       try {
         const raw = localStorage.getItem(PONDS_STORAGE_KEY);
@@ -91,6 +94,20 @@ export function initDashboard() {
     ];
 
     const alerts = [];
+    const alertRuntimeBySensor = {};
+    let alertsInitialized = false;
+    const thresholdConfig = (() => {
+      try {
+        const raw = localStorage.getItem(THRESHOLD_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return {
+          enabled: Boolean(parsed?.enabled),
+          values: parsed?.values && typeof parsed.values === "object" ? parsed.values : {}
+        };
+      } catch {
+        return { enabled: false, values: {} };
+      }
+    })();
 
     const insights = [];
 
@@ -295,6 +312,32 @@ export function initDashboard() {
       return sensors.find((sensor) => sensor.key === key) || sensors[0];
     }
 
+    function buildLocalizedText(message) {
+      return { en: message, ta: message, hi: message, kn: message };
+    }
+
+    function formatClockTime(date) {
+      return date.toLocaleTimeString("en-GB");
+    }
+
+    function saveThresholdConfig() {
+      try {
+        localStorage.setItem(THRESHOLD_STORAGE_KEY, JSON.stringify(thresholdConfig));
+      } catch {
+        // Ignore storage write failures.
+      }
+    }
+
+    function getEffectiveSafeRange(sensor) {
+      if (!thresholdConfig.enabled) return sensor.safeRange;
+      const candidate = thresholdConfig.values?.[sensor.key];
+      if (!Array.isArray(candidate) || candidate.length !== 2) return sensor.safeRange;
+      const min = Number(candidate[0]);
+      const max = Number(candidate[1]);
+      if (!Number.isFinite(min) || !Number.isFinite(max) || min >= max) return sensor.safeRange;
+      return [min, max];
+    }
+
     function getPredictionTargetLabel(key) {
       if (key === "temperature") return t("temperature");
       if (key === "do") return t("dissolvedOxygen");
@@ -332,9 +375,18 @@ export function initDashboard() {
       selector.value = String(predictionHistoryPreview);
     }
 
+    function populateTrendMetricSelector() {
+      const selector = document.getElementById("trendMetricSelect");
+      if (!selector) return;
+      selector.innerHTML = sensors.map((sensor, index) => `
+        <option value="${index}"${index === selectedSensor ? " selected" : ""}>${getPredictionTargetLabel(sensor.key)}</option>
+      `).join("");
+      selector.value = String(selectedSensor);
+    }
+
     function getStatus(sensor) {
       if (!Number.isFinite(sensor.value)) return "safe";
-      const [safeMin, safeMax] = sensor.safeRange;
+      const [safeMin, safeMax] = getEffectiveSafeRange(sensor);
       const [absMin, absMax] = sensor.absoluteRange;
       if (sensor.value < absMin || sensor.value > absMax) return "critical";
       if (sensor.value < safeMin || sensor.value > safeMax) return "critical";
@@ -344,6 +396,87 @@ export function initDashboard() {
       if (sensor.value < safeMin + warnBuffer || sensor.value > safeMax - warnBuffer) return "warning";
 
       return "safe";
+    }
+
+    function showAlertToast(alert) {
+      const container = document.getElementById("toastStack");
+      if (!container) return;
+      const toast = document.createElement("div");
+      toast.className = `alert-toast ${alert.level}`;
+      toast.innerHTML = `
+        <div class="alert-toast-title">${alert.title[currentLang]}</div>
+        <div class="alert-toast-copy">${alert.copy[currentLang]}</div>
+      `;
+      container.appendChild(toast);
+      window.setTimeout(() => {
+        toast.classList.add("hide");
+        window.setTimeout(() => toast.remove(), 220);
+      }, 4200);
+    }
+
+    function pushAlert(level, title, copy, emitToast = true) {
+      const now = new Date();
+      const next = {
+        level,
+        title: buildLocalizedText(title),
+        copy: buildLocalizedText(copy),
+        time: formatClockTime(now),
+        ts: now.getTime()
+      };
+      alerts.unshift(next);
+      if (alerts.length > ALERT_MAX_ITEMS) alerts.length = ALERT_MAX_ITEMS;
+      renderAlerts();
+      renderSummaries();
+      if (emitToast) showAlertToast(next);
+    }
+
+    function evaluateThresholdAlerts() {
+      const now = Date.now();
+      const hasData = sensors.some((sensor) => Number.isFinite(sensor.value));
+      if (!hasData) return;
+
+      if (!alertsInitialized) {
+        sensors.forEach((sensor) => {
+          alertRuntimeBySensor[sensor.key] = {
+            status: getStatus(sensor),
+            lastAlertAt: now
+          };
+        });
+        alertsInitialized = true;
+        return;
+      }
+
+      sensors.forEach((sensor) => {
+        const status = getStatus(sensor);
+        const value = formatSensorValue(sensor);
+        const [safeMin, safeMax] = getEffectiveSafeRange(sensor);
+        const state = alertRuntimeBySensor[sensor.key] || { status: "safe", lastAlertAt: 0 };
+        const statusChanged = status !== state.status;
+        const cooldownElapsed = now - state.lastAlertAt >= ALERT_COOLDOWN_MS;
+
+        if (statusChanged) {
+          if (status === "safe") {
+            pushAlert("safe", `${sensor.name} back to normal`, `Current value ${value}${sensor.unit ? ` ${sensor.unit}` : ""} is within ${safeMin}-${safeMax}.`);
+          } else {
+            pushAlert(
+              status,
+              `${sensor.name} ${status === "critical" ? "critical" : "near limit"}`,
+              `Current value ${value}${sensor.unit ? ` ${sensor.unit}` : ""}; recommended range ${safeMin}-${safeMax}.`
+            );
+          }
+          state.lastAlertAt = now;
+        } else if (status !== "safe" && cooldownElapsed) {
+          pushAlert(
+            status,
+            `${sensor.name} still ${status}`,
+            `Current value ${value}${sensor.unit ? ` ${sensor.unit}` : ""}; recommended range ${safeMin}-${safeMax}.`
+          );
+          state.lastAlertAt = now;
+        }
+
+        state.status = status;
+        alertRuntimeBySensor[sensor.key] = state;
+      });
     }
 
     function statusLabel(status) {
@@ -467,12 +600,6 @@ export function initDashboard() {
       return sensor.decimals === 0 ? Math.round(sensor.value).toString() : sensor.value.toFixed(sensor.decimals);
     }
 
-    function rangeMarker(sensor) {
-      if (!Number.isFinite(sensor.value)) return 0;
-      const [min, max] = sensor.absoluteRange;
-      return Math.max(0, Math.min(100, ((sensor.value - min) / (max - min)) * 100));
-    }
-
     function renderSummaries() {
       const healthy = ponds.filter((pond) => pond.status === "safe").length;
       const warning = ponds.filter((pond) => pond.status === "warning").length;
@@ -501,8 +628,6 @@ export function initDashboard() {
 
       grid.innerHTML = sensors.map((sensor, index) => {
         const status = getStatus(sensor);
-        const safe = sensor.safeRange;
-        const absolute = sensor.absoluteRange;
 
         return `
           <article class="reading-card ${status} ${index === selectedSensor ? 'active' : ''}" onclick="selectSensor(${index})">
@@ -516,18 +641,11 @@ export function initDashboard() {
               ${formatSensorValue(sensor)}
               ${sensor.unit ? `<span class="reading-unit">${sensor.unit}</span>` : ""}
             </div>
-
-            <div class="range-wrap">
-              <div class="range-track" style="--marker:${rangeMarker(sensor)}"></div>
-              <div class="range-labels">
-                <span>${absolute[0]}</span>
-                <span>${safe[0]}-${safe[1]}</span>
-                <span>${absolute[1]}</span>
-              </div>
-            </div>
           </article>
         `;
       }).join("");
+      const trendSelector = document.getElementById("trendMetricSelect");
+      if (trendSelector) trendSelector.value = String(selectedSensor);
     }
 
     function getSensorByKey(key) {
@@ -583,6 +701,7 @@ export function initDashboard() {
         if (!payload || !payload.reading) return;
         if (applySensorReading(payload.reading)) {
           hasLiveSensorData = true;
+          evaluateThresholdAlerts();
           renderSummaries();
           renderReadings();
           renderPonds();
@@ -760,6 +879,30 @@ export function initDashboard() {
       return { line: "#cc553c", fill: "rgba(204,85,60,0.12)" };
     }
 
+    function renderTrendContext(sensor) {
+      const [safeMin, safeMax] = getEffectiveSafeRange(sensor);
+      const status = getStatus(sensor);
+      const minNode = document.getElementById("proximityMin");
+      const maxNode = document.getElementById("proximityMax");
+      const labelNode = document.getElementById("proximityLabel");
+      const markerNode = document.getElementById("proximityMarker");
+      if (!minNode || !maxNode || !labelNode || !markerNode) return;
+
+      minNode.textContent = `${safeMin}${sensor.unit ? ` ${sensor.unit}` : ""}`;
+      maxNode.textContent = `${safeMax}${sensor.unit ? ` ${sensor.unit}` : ""}`;
+      labelNode.textContent = `${formatSensorValue(sensor)}${sensor.unit ? ` ${sensor.unit}` : ""}`;
+      labelNode.className = `proximity-status ${status}`;
+
+      let ratio = 50;
+      if (Number.isFinite(sensor.value)) {
+        ratio = ((sensor.value - safeMin) / Math.max(safeMax - safeMin, 0.0001)) * 100;
+      }
+      ratio = Math.max(0, Math.min(100, ratio));
+      markerNode.style.left = `${ratio}%`;
+      markerNode.className = `proximity-marker ${status}`;
+    }
+
+
     function updateTrendChart() {
       const sensor = sensors[selectedSensor];
       if (!Number.isFinite(sensor.value)) {
@@ -778,6 +921,7 @@ export function initDashboard() {
           trendChart.data.datasets[0].data = [];
           trendChart.update();
         }
+        renderTrendContext(sensor);
         return;
       }
 
@@ -803,6 +947,7 @@ export function initDashboard() {
       document.getElementById("statMax").textContent = max.toFixed(sensor.decimals === 0 ? 0 : 1);
       document.getElementById("statAvg").textContent = avg.toFixed(sensor.decimals === 0 ? 0 : 1);
       document.getElementById("statTrend").textContent = trend;
+      renderTrendContext(sensor);
 
       if (!trendChart) {
         trendChart = new Chart(document.getElementById("trendChart"), {
@@ -1062,7 +1207,9 @@ export function initDashboard() {
       selectedSensor = index;
       renderReadings();
       updateTrendChart();
+      populateTrendMetricSelector();
     }
+
 
     function setRange(range) {
       selectedRange = range;
@@ -1101,6 +1248,43 @@ export function initDashboard() {
       if (alertsPage) alertsPage.innerHTML = markup;
     }
 
+    function renderThresholdSettings() {
+      const grid = document.getElementById("thresholdsGrid");
+      const toggle = document.getElementById("thresholdOverrideToggle");
+      if (!grid || !toggle) return;
+      toggle.checked = thresholdConfig.enabled;
+
+      grid.innerHTML = sensors.map((sensor) => {
+        const [min, max] = getEffectiveSafeRange(sensor);
+        return `
+          <div class="threshold-item ${thresholdConfig.enabled ? "" : "disabled"}">
+            <div class="threshold-name">${sensor.name}</div>
+            <div class="threshold-default">Default: ${sensor.safeRange[0]}-${sensor.safeRange[1]} ${sensor.unit || ""}</div>
+            <div class="threshold-inputs">
+              <input type="number" step="any" data-threshold="${sensor.key}" data-bound="min" value="${min}" ${thresholdConfig.enabled ? "" : "disabled"} />
+              <span>to</span>
+              <input type="number" step="any" data-threshold="${sensor.key}" data-bound="max" value="${max}" ${thresholdConfig.enabled ? "" : "disabled"} />
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function readThresholdInputs() {
+      const next = {};
+      for (const sensor of sensors) {
+        const minNode = document.querySelector(`input[data-threshold="${sensor.key}"][data-bound="min"]`);
+        const maxNode = document.querySelector(`input[data-threshold="${sensor.key}"][data-bound="max"]`);
+        const min = Number(minNode?.value);
+        const max = Number(maxNode?.value);
+        if (!Number.isFinite(min) || !Number.isFinite(max) || min >= max) {
+          return { ok: false, error: `Invalid threshold for ${sensor.name}.` };
+        }
+        next[sensor.key] = [min, max];
+      }
+      return { ok: true, values: next };
+    }
+
     function applyTranslations() {
       document.documentElement.lang = currentLang;
       document.querySelectorAll("[data-i18n]").forEach((node) => {
@@ -1117,6 +1301,7 @@ export function initDashboard() {
       populatePredictionTargetSelector();
       populatePredictionHorizonSelector();
       populatePredictionHistorySelector();
+      populateTrendMetricSelector();
     }
 
     function switchView(view) {
@@ -1175,6 +1360,7 @@ export function initDashboard() {
         else sensor.value = Number(sensor.value.toFixed(sensor.decimals));
       });
 
+      evaluateThresholdAlerts();
       renderReadings();
       renderSummaries();
       updateTrendChart();
@@ -1451,6 +1637,52 @@ export function initDashboard() {
         pollPredictionsData();
       });
     }
+    const trendMetricSelect = document.getElementById("trendMetricSelect");
+    if (trendMetricSelect) {
+      trendMetricSelect.addEventListener("change", (event) => {
+        const index = Number(event.target.value);
+        if (Number.isInteger(index) && index >= 0 && index < sensors.length) selectSensor(index);
+      });
+    }
+    const thresholdToggle = document.getElementById("thresholdOverrideToggle");
+    if (thresholdToggle) {
+      thresholdToggle.addEventListener("change", (event) => {
+        thresholdConfig.enabled = Boolean(event.target.checked);
+        saveThresholdConfig();
+        alertsInitialized = false;
+        renderThresholdSettings();
+        renderReadings();
+        updateTrendChart();
+      });
+    }
+    const saveThresholdsBtn = document.getElementById("saveThresholdsBtn");
+    if (saveThresholdsBtn) {
+      saveThresholdsBtn.addEventListener("click", () => {
+        const result = readThresholdInputs();
+        if (!result.ok) {
+          alert(result.error);
+          return;
+        }
+        thresholdConfig.values = result.values;
+        saveThresholdConfig();
+        alertsInitialized = false;
+        renderThresholdSettings();
+        renderReadings();
+        updateTrendChart();
+      });
+    }
+    const resetThresholdsBtn = document.getElementById("resetThresholdsBtn");
+    if (resetThresholdsBtn) {
+      resetThresholdsBtn.addEventListener("click", () => {
+        thresholdConfig.values = {};
+        thresholdConfig.enabled = false;
+        saveThresholdConfig();
+        alertsInitialized = false;
+        renderThresholdSettings();
+        renderReadings();
+        updateTrendChart();
+      });
+    }
     window.downloadCSV = downloadCSV;
     window.downloadExcel = downloadExcel;
     window.generateReport = generateReport;
@@ -1475,6 +1707,7 @@ export function initDashboard() {
     renderSummaries();
     renderReadings();
     renderAlerts();
+    renderThresholdSettings();
     renderPonds();
     renderInsights();
     updateTrendChart();

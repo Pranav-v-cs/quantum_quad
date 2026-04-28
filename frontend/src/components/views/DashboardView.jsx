@@ -3,6 +3,7 @@ import React from "react";
 export default function DashboardView() {
   return (
     <section className="view active" id="view-dashboard">
+      <div className="toast-stack" id="toastStack"></div>
       <section className="page-header">
         <div>
           <h1 className="page-title" data-i18n="pageDashboard">Dashboard</h1>
@@ -34,40 +35,85 @@ export default function DashboardView() {
       </section>
 
       <section className="two-col">
-        <div className="section-card">
-          <div className="section-card-head">
-            <div>
-              <h3 className="section-title" style={{ fontSize: "26px" }} data-i18n="historicalTrends">Historical trends</h3>
-              <div className="section-sub" id="trendSubtitle">No data available</div>
+        <div className="left-col-stack">
+          <div className="section-card">
+            <div className="section-card-head">
+              <div>
+                <h3 className="section-title" style={{ fontSize: "26px" }} data-i18n="historicalTrends">Historical trends</h3>
+                <div className="section-sub" id="trendSubtitle">No data available</div>
+              </div>
+              <div className="trend-controls">
+                <div className="prediction-control trend-metric-control">
+                  <label htmlFor="trendMetricSelect">Metric</label>
+                  <select id="trendMetricSelect"></select>
+                </div>
+                <div className="range-tabs">
+                <button className="range-btn" data-range="1h">1h</button>
+                <button className="range-btn active" data-range="24h">24h</button>
+                <button className="range-btn" data-range="7d">7d</button>
+                </div>
+              </div>
             </div>
-            <div className="range-tabs">
-              <button className="range-btn" data-range="1h">1h</button>
-              <button className="range-btn active" data-range="24h">24h</button>
-              <button className="range-btn" data-range="7d">7d</button>
+
+            <div className="chart-shell">
+              <canvas id="trendChart"></canvas>
+            </div>
+
+            <div className="stats-row">
+              <span>Min: <strong id="statMin">--</strong></span>
+              <span>Max: <strong id="statMax">--</strong></span>
+              <span>Avg: <strong id="statAvg">--</strong></span>
+              <span>Trend: <strong id="statTrend">--</strong></span>
             </div>
           </div>
 
-          <div className="chart-shell">
-            <canvas id="trendChart"></canvas>
-          </div>
-
-          <div className="stats-row">
-            <span>Min: <strong id="statMin">--</strong></span>
-            <span>Max: <strong id="statMax">--</strong></span>
-            <span>Avg: <strong id="statAvg">--</strong></span>
-            <span>Trend: <strong id="statTrend">--</strong></span>
+          <div className="section-card proximity-panel-card">
+            <div className="trend-context">
+              <div className="proximity-card">
+                <div className="proximity-head">
+                  <span>Threshold proximity</span>
+                  <strong id="proximityLabel">--</strong>
+                </div>
+                <div className="proximity-scale">
+                  <span id="proximityMin">--</span>
+                  <div className="proximity-track">
+                    <div id="proximityMarker" className="proximity-marker"></div>
+                  </div>
+                  <span id="proximityMax">--</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="section-card">
-          <div className="section-card-head">
-            <div>
-              <h3 className="section-title" style={{ fontSize: "26px" }} data-i18n="recentAlerts">Recent alerts</h3>
-              <div className="section-sub" data-i18n="alertsSub">Threshold and trend based events</div>
+        <div className="right-col-stack">
+          <div className="section-card">
+            <div className="section-card-head">
+              <div>
+                <h3 className="section-title" style={{ fontSize: "26px" }} data-i18n="recentAlerts">Recent alerts</h3>
+                <div className="section-sub" data-i18n="alertsSub">Threshold and trend based events</div>
+              </div>
+              <button className="chip-btn" data-i18n="alertLog">Alert log</button>
             </div>
-            <button className="chip-btn" data-i18n="alertLog">Alert log</button>
+            <div className="alerts-list" id="alertsList"></div>
           </div>
-          <div className="alerts-list" id="alertsList"></div>
+
+          <div className="section-card threshold-panel-card">
+            <div className="threshold-config">
+              <div className="threshold-config-head">
+                <strong>Threshold settings</strong>
+                <label className="threshold-toggle">
+                  <input type="checkbox" id="thresholdOverrideToggle" />
+                  <span>Use custom thresholds</span>
+                </label>
+              </div>
+              <div className="thresholds-grid" id="thresholdsGrid"></div>
+              <div className="threshold-actions">
+                <button className="chip-btn" id="saveThresholdsBtn" type="button">Save thresholds</button>
+                <button className="chip-btn" id="resetThresholdsBtn" type="button">Reset defaults</button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

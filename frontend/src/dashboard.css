@@ -713,6 +713,31 @@
       grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.9fr);
       gap: 22px;
       margin-bottom: 38px;
+      align-items: stretch;
+    }
+
+    .left-col-stack,
+    .right-col-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      height: 100%;
+    }
+
+    .left-col-stack {
+      gap: 12px;
+      justify-content: flex-start;
+    }
+
+    .left-col-stack > .section-card:first-child {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .left-col-stack > .section-card:first-child .chart-shell {
+      flex: 1;
+      min-height: 290px;
     }
 
     .section-card {
@@ -732,6 +757,48 @@
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
+    }
+
+    .trend-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .trend-metric-control {
+      gap: 5px;
+    }
+
+    .trend-metric-control label {
+      font-size: 12px;
+      color: #62726b;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .trend-metric-control select {
+      min-width: 150px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--panel);
+      color: #4b5f57;
+      padding: 9px 36px 9px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M3.2 5.2 7 9l3.8-3.8' fill='none' stroke='%2355665f' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      cursor: pointer;
+    }
+
+    .trend-metric-control select:focus-visible {
+      outline: 2px solid rgba(53, 127, 200, 0.35);
+      outline-offset: 1px;
     }
 
     .range-btn.active {
@@ -756,6 +823,77 @@
 
     .stats-row strong {
       color: var(--text);
+    }
+
+    .trend-context {
+      margin-top: 0;
+    }
+
+    .proximity-panel-card {
+      padding: 14px 16px;
+    }
+
+    .proximity-card {
+      border: 1px solid #e9e3d9;
+      border-radius: 14px;
+      background: rgba(251, 250, 246, 0.85);
+      padding: 10px 12px;
+    }
+
+    .proximity-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 12px;
+      color: #5f726a;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .proximity-status {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .proximity-status.safe { color: var(--safe); }
+    .proximity-status.warning { color: var(--warn); }
+    .proximity-status.critical { color: var(--danger); }
+
+    .proximity-scale {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #6d7d76;
+    }
+
+    .proximity-track {
+      height: 10px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #efe6d5 0%, #e2efe7 50%, #efe6d5 100%);
+      position: relative;
+    }
+
+    .proximity-marker {
+      position: absolute;
+      top: -3px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(31, 38, 36, 0.2);
+      transform: translateX(-50%);
+      background: var(--safe);
+    }
+
+    .proximity-marker.warning { background: var(--warn); }
+    .proximity-marker.critical { background: var(--danger); }
+
+    .threshold-panel-card {
+      min-height: 500px;
     }
 
     .predictions-section {
@@ -813,6 +951,139 @@
       color: var(--text);
       padding: 8px 10px;
       font-size: 13px;
+    }
+
+    .threshold-config {
+      display: grid;
+      gap: 12px;
+    }
+
+    .threshold-config-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .threshold-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .thresholds-grid {
+      display: grid;
+      gap: 10px;
+      max-height: 360px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .threshold-item {
+      border: 1px solid #e8e2d8;
+      border-radius: 12px;
+      background: rgba(251, 250, 246, 0.75);
+      padding: 12px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .threshold-item.disabled {
+      opacity: 0.65;
+    }
+
+    .threshold-name {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .threshold-default {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .threshold-inputs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #5f726a;
+      font-weight: 600;
+    }
+
+    .threshold-inputs input {
+      width: 96px;
+      border: 1px solid #d8d2c7;
+      border-radius: 10px;
+      padding: 6px 8px;
+      background: #fff;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .threshold-inputs input:focus-visible {
+      outline: 2px solid rgba(53, 127, 200, 0.3);
+      outline-offset: 1px;
+    }
+
+    .threshold-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .toast-stack {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1100;
+      display: grid;
+      gap: 8px;
+      width: min(360px, calc(100vw - 26px));
+      pointer-events: none;
+    }
+
+    .alert-toast {
+      border-radius: 12px;
+      border: 1px solid #e7ded1;
+      background: #fff;
+      box-shadow: 0 10px 24px rgba(43, 52, 46, 0.12);
+      padding: 10px 12px;
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .alert-toast.hide {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+
+    .alert-toast.warning {
+      border-left: 4px solid var(--warn);
+    }
+
+    .alert-toast.critical {
+      border-left: 4px solid var(--danger);
+    }
+
+    .alert-toast.safe {
+      border-left: 4px solid var(--safe);
+    }
+
+    .alert-toast-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .alert-toast-copy {
+      margin-top: 3px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
     }
 
     .alerts-list,

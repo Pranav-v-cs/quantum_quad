@@ -111,7 +111,7 @@ export function initDashboard() {
         predictionsSelected: "Selected value", predictionsAnomalies: "Anomalies",
         alertsSub: "Threshold and trend based events", alertLog: "Alert log", pondsTitle: "Ponds",
         pondsSub: "Species-aware overview for all monitored stations", addPond: "+ Add pond",
-        analytics: "Analytics", analyticsSub: "Daily stats, WQI and rainfall correlation",
+        analytics: "Analytics", analyticsSub: "Daily stats and rainfall correlation",
         systemHealth: "System health", systemHealthSub: "Device and connectivity status",
         online: "Online", deviceStatus: "Device status", espConnected: "ESP32 connected",
         lastPacket: "Last packet", twoSecondsAgo: "2 seconds ago", batteryLevel: "Battery level",
@@ -124,9 +124,9 @@ export function initDashboard() {
         activeStations: "Active stations", alertMode: "Alert mode", smsEmailPush: "SMS, email, and push notifications",
         selectedSpecies: "Selected species", totalPonds: "Total Ponds", healthy: "Healthy", warning: "Warning",
         activeAlerts: "Active Alerts", safe: "Safe", critical: "Critical", station: "Station",
-        wqi: "WQI", temperature: "Temperature", dissolvedOxygen: "Dissolved Oxygen",
+        temperature: "Temperature", dissolvedOxygen: "Dissolved Oxygen",
         min: "Min", max: "Max", avg: "Avg", trend: "Trend", rising: "Rising", falling: "Falling",
-        selectedLast: "selected · last", waterQualityIndex: "Water Quality Index", rainfallCorrelation: "Rainfall correlation",
+        selectedLast: "selected · last", rainfallCorrelation: "Rainfall correlation",
         dailyAverages: "Daily averages", complianceView: "Compliance view"
       },
       ta: {
@@ -144,7 +144,7 @@ export function initDashboard() {
         predictionTargetLabel: "கணிப்பு அளவுரு", predictionHorizonLabel: "முன்கணிப்பு புள்ளிகள்", predictionHistoryLabel: "கடந்த புள்ளிகள்",
         alertsSub: "வரம்பு மற்றும் போக்கு அடிப்படையிலான நிகழ்வுகள்", alertLog: "எச்சரிக்கை பதிவு", pondsTitle: "குளங்கள்",
         pondsSub: "அனைத்து கண்காணிப்பு நிலையங்களின் இன அடிப்படையிலான காட்சி", addPond: "+ குளம் சேர்க்க",
-        analytics: "பகுப்பாய்வு", analyticsSub: "தினசரி புள்ளிவிவரங்கள், WQI மற்றும் மழை தொடர்பு",
+        analytics: "பகுப்பாய்வு", analyticsSub: "தினசரி புள்ளிவிவரங்கள் மற்றும் மழை தொடர்பு",
         systemHealth: "அமைப்பு நிலை", systemHealthSub: "சாதனம் மற்றும் இணைப்பு நிலை",
         online: "ஆன்லைன்", deviceStatus: "சாதன நிலை", espConnected: "ESP32 இணைக்கப்பட்டுள்ளது",
         lastPacket: "கடைசி தொகுப்பு", twoSecondsAgo: "2 விநாடிகள் முன்பு", batteryLevel: "மின்கலம் நிலை",
@@ -157,9 +157,9 @@ export function initDashboard() {
         activeStations: "செயலில் உள்ள நிலையங்கள்", alertMode: "எச்சரிக்கை முறை", smsEmailPush: "SMS, மின்னஞ்சல் மற்றும் push அறிவிப்புகள்",
         selectedSpecies: "தேர்ந்தெடுக்கப்பட்ட இனங்கள்", totalPonds: "மொத்த குளங்கள்", healthy: "ஆரோக்கியம்", warning: "எச்சரிக்கை",
         activeAlerts: "செயலில் உள்ள எச்சரிக்கைகள்", safe: "பாதுகாப்பானது", critical: "மிகவும் ஆபத்து", station: "நிலையம்",
-        wqi: "WQI", temperature: "வெப்பநிலை", dissolvedOxygen: "கரைந்த ஆக்சிஜன்",
+        temperature: "வெப்பநிலை", dissolvedOxygen: "கரைந்த ஆக்சிஜன்",
         min: "குறைந்தது", max: "அதிகபட்சம்", avg: "சராசரி", trend: "போக்கு", rising: "உயர்வு", falling: "குறைவு",
-        selectedLast: "தேர்ந்தெடுக்கப்பட்டது · கடைசி", waterQualityIndex: "நீர்தர குறியீடு", rainfallCorrelation: "மழை தொடர்பு",
+        selectedLast: "தேர்ந்தெடுக்கப்பட்டது · கடைசி", rainfallCorrelation: "மழை தொடர்பு",
         dailyAverages: "தினசரி சராசரிகள்", complianceView: "இணக்க காட்சி"
       },
       hi: {
@@ -177,7 +177,7 @@ export function initDashboard() {
         predictionTargetLabel: "कौन सा मान", predictionHorizonLabel: "भविष्य बिंदु", predictionHistoryLabel: "पिछले बिंदु",
         alertsSub: "सीमा और रुझान आधारित घटनाएं", alertLog: "अलर्ट लॉग", pondsTitle: "तालाब",
         pondsSub: "सभी मॉनिटर किए गए स्टेशनों का प्रजाति-आधारित अवलोकन", addPond: "+ तालाब जोड़ें",
-        analytics: "एनालिटिक्स", analyticsSub: "दैनिक आँकड़े, WQI और वर्षा संबंध",
+        analytics: "एनालिटिक्स", analyticsSub: "दैनिक आँकड़े और वर्षा संबंध",
         systemHealth: "सिस्टम स्वास्थ्य", systemHealthSub: "डिवाइस और कनेक्टिविटी स्थिति",
         online: "ऑनलाइन", deviceStatus: "डिवाइस स्थिति", espConnected: "ESP32 जुड़ा है",
         lastPacket: "अंतिम पैकेट", twoSecondsAgo: "2 सेकंड पहले", batteryLevel: "बैटरी स्तर",
@@ -190,9 +190,9 @@ export function initDashboard() {
         activeStations: "सक्रिय स्टेशन", alertMode: "अलर्ट मोड", smsEmailPush: "SMS, ईमेल और पुश नोटिफिकेशन",
         selectedSpecies: "चयनित प्रजातियाँ", totalPonds: "कुल तालाब", healthy: "स्वस्थ", warning: "चेतावनी",
         activeAlerts: "सक्रिय अलर्ट", safe: "सुरक्षित", critical: "गंभीर", station: "स्टेशन",
-        wqi: "WQI", temperature: "तापमान", dissolvedOxygen: "घुलित ऑक्सीजन",
+        temperature: "तापमान", dissolvedOxygen: "घुलित ऑक्सीजन",
         min: "न्यूनतम", max: "अधिकतम", avg: "औसत", trend: "रुझान", rising: "बढ़ता", falling: "घटता",
-        selectedLast: "चयनित · पिछले", waterQualityIndex: "जल गुणवत्ता सूचकांक", rainfallCorrelation: "वर्षा संबंध",
+        selectedLast: "चयनित · पिछले", rainfallCorrelation: "वर्षा संबंध",
         dailyAverages: "दैनिक औसत", complianceView: "अनुपालन दृश्य"
       },
       kn: {
@@ -210,7 +210,7 @@ export function initDashboard() {
         predictionTargetLabel: "ಯಾವ ಮಾಪನ", predictionHorizonLabel: "ಭವಿಷ್ಯ ಬಿಂದುಗಳು", predictionHistoryLabel: "ಹಿಂದಿನ ಬಿಂದುಗಳು",
         alertsSub: "ಮಿತಿ ಮತ್ತು ಪ್ರವೃತ್ತಿ ಆಧಾರಿತ ಘಟನೆಗಳು", alertLog: "ಎಚ್ಚರಿಕೆ ಲಾಗ್", pondsTitle: "ಕೊಳಗಳು",
         pondsSub: "ಎಲ್ಲಾ ಮೇಲ್ವಿಚಾರಣೆಯಲ್ಲಿರುವ ಕೇಂದ್ರಗಳ ಪ್ರಜಾತಿ ಆಧಾರಿತ ಅವಲೋಕನ", addPond: "+ ಕೊಳ ಸೇರಿಸಿ",
-        analytics: "ವಿಶ್ಲೇಷಣೆ", analyticsSub: "ದೈನಂದಿನ ಅಂಕಿಅಂಶಗಳು, WQI ಮತ್ತು ಮಳೆ ಸಂಬಂಧ",
+        analytics: "ವಿಶ್ಲೇಷಣೆ", analyticsSub: "ದೈನಂದಿನ ಅಂಕಿಅಂಶಗಳು ಮತ್ತು ಮಳೆ ಸಂಬಂಧ",
         systemHealth: "ವ್ಯವಸ್ಥೆ ಆರೋಗ್ಯ", systemHealthSub: "ಸಾಧನ ಮತ್ತು ಸಂಪರ್ಕ ಸ್ಥಿತಿ",
         online: "ಆನ್‌ಲೈನ್", deviceStatus: "ಸಾಧನ ಸ್ಥಿತಿ", espConnected: "ESP32 ಸಂಪರ್ಕಗೊಂಡಿದೆ",
         lastPacket: "ಕೊನೆಯ ಪ್ಯಾಕೆಟ್", twoSecondsAgo: "2 ಸೆಕೆಂಡುಗಳ ಹಿಂದೆ", batteryLevel: "ಬ್ಯಾಟರಿ ಮಟ್ಟ",
@@ -223,9 +223,9 @@ export function initDashboard() {
         activeStations: "ಸಕ್ರಿಯ ಕೇಂದ್ರಗಳು", alertMode: "ಎಚ್ಚರಿಕೆ ಮೋಡ್", smsEmailPush: "SMS, ಇಮೇಲ್ ಮತ್ತು ಪುಶ್ ಸೂಚನೆಗಳು",
         selectedSpecies: "ಆಯ್ಕೆ ಮಾಡಿದ ಜಾತಿಗಳು", totalPonds: "ಒಟ್ಟು ಕೊಳಗಳು", healthy: "ಆರೋಗ್ಯಕರ", warning: "ಎಚ್ಚರಿಕೆ",
         activeAlerts: "ಸಕ್ರಿಯ ಎಚ್ಚರಿಕೆಗಳು", safe: "ಸುರಕ್ಷಿತ", critical: "ಗಂಭೀರ", station: "ಕೇಂದ್ರ",
-        wqi: "WQI", temperature: "ತಾಪಮಾನ", dissolvedOxygen: "ಕರಗಿದ ಆಮ್ಲಜನಕ",
+        temperature: "ತಾಪಮಾನ", dissolvedOxygen: "ಕರಗಿದ ಆಮ್ಲಜನಕ",
         min: "ಕನಿಷ್ಠ", max: "ಗರಿಷ್ಠ", avg: "ಸರಾಸರಿ", trend: "ಪ್ರವೃತ್ತಿ", rising: "ಏರಿಕೆ", falling: "ಇಳಿಕೆ",
-        selectedLast: "ಆಯ್ಕೆಮಾಡಲಾಗಿದೆ · ಕೊನೆಯ", waterQualityIndex: "ನೀರಿನ ಗುಣಮಟ್ಟ ಸೂಚ್ಯಂಕ", rainfallCorrelation: "ಮಳೆ ಸಂಬಂಧ",
+        selectedLast: "ಆಯ್ಕೆಮಾಡಲಾಗಿದೆ · ಕೊನೆಯ", rainfallCorrelation: "ಮಳೆ ಸಂಬಂಧ",
         dailyAverages: "ದೈನಂದಿನ ಸರಾಸರಿ", complianceView: "ಅನುಸರಣೆ ನೋಟ"
       }
     };
@@ -352,10 +352,13 @@ export function initDashboard() {
       return status === "safe" ? t("safe") : status === "warning" ? t("warning") : t("critical");
     }
 
-    function statusFromWqi(wqi) {
-      if (wqi >= 80) return "safe";
-      if (wqi >= 60) return "warning";
-      return "critical";
+    function currentOverallStatus() {
+      const statuses = sensors.map((sensor) => getStatus(sensor));
+      return statuses.includes("critical")
+        ? "critical"
+        : statuses.includes("warning")
+          ? "warning"
+          : "safe";
     }
 
     function savePonds() {
@@ -693,10 +696,6 @@ export function initDashboard() {
             <div class="pond-metric">
               <div class="k">${t("station")}</div>
               <div class="v">${pond.station}</div>
-            </div>
-            <div class="pond-metric">
-              <div class="k">${t("wqi")}</div>
-              <div class="v">${pond.wqi}/100</div>
             </div>
             <div class="pond-metric">
               <div class="k">${t("temperature")}</div>
@@ -1236,14 +1235,6 @@ export function initDashboard() {
         return;
       }
 
-      const wqiInput = prompt("WQI (0-100)");
-      if (wqiInput === null) return;
-      const parsedWqi = Number(wqiInput);
-      if (!Number.isFinite(parsedWqi)) {
-        alert("WQI must be a valid number.");
-        return;
-      }
-      const wqi = Math.max(0, Math.min(100, Math.round(parsedWqi)));
       const temp = getSensorByKey("temperature");
       const dissolvedOxygen = getSensorByKey("do");
       const latestGps = await getLatestGps();
@@ -1252,8 +1243,7 @@ export function initDashboard() {
         species,
         name,
         station,
-        status: statusFromWqi(wqi),
-        wqi,
+        status: currentOverallStatus(),
         temp: Number.isFinite(temp?.value) ? `${temp.value.toFixed(1)} C` : "--",
         do: Number.isFinite(dissolvedOxygen?.value) ? `${dissolvedOxygen.value.toFixed(2)} mg/L` : "--",
         lat: latestGps?.lat ?? null,

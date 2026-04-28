@@ -4,6 +4,7 @@ export function initDashboard() {
     const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:9999").replace(/\/$/, "");
     const SENSOR_POLL_MS = 10000;
     const GPS_POLL_MS = 10000;
+    const CAMERA_CONFIG_POLL_MS = 30000;
     const DASHBOARD_REFRESH_SECONDS = Math.round(SENSOR_POLL_MS / 1000);
     const DEFAULT_PREDICTION_HORIZON = 24;
     const DEFAULT_PREDICTION_HISTORY_CONTEXT_POINTS = 16;
@@ -242,6 +243,7 @@ export function initDashboard() {
     let predictionsChart;
     let sensorPollInterval;
     let gpsPollInterval;
+    let cameraConfigPollInterval;
     let hasLiveSensorData = false;
     let predictionsTarget = "temperature";
     let predictionHorizon = DEFAULT_PREDICTION_HORIZON;
@@ -260,6 +262,9 @@ export function initDashboard() {
     };
     const predictionHorizonOptions = [12, 24, 36];
     const predictionHistoryOptions = [8, 16, 24, 32];
+    let cameraStreamUrl = "";
+    let cameraProxyUrl = "";
+    let activeCameraPondName = "";
 
     const chartConfig = {
       "1h": { points: 12, stepMinutes: 5, variance: 0.04 },
@@ -282,7 +287,8 @@ export function initDashboard() {
         droplets: '<svg viewBox="0 0 24 24"><path d="M7 14a5 5 0 1 0 10 0c0-3-5-9-5-9s-5 6-5 9Z"></path><path d="M10 14a2 2 0 0 0 4 0"></path></svg>',
         waves: '<svg viewBox="0 0 24 24"><path d="M3 8c1.2.8 2.3.8 3.5 0s2.3-.8 3.5 0 2.3.8 3.5 0 2.3-.8 3.5 0"></path><path d="M3 12c1.2.8 2.3.8 3.5 0s2.3-.8 3.5 0 2.3.8 3.5 0 2.3-.8 3.5 0"></path><path d="M3 16c1.2.8 2.3.8 3.5 0s2.3-.8 3.5 0 2.3.8 3.5 0 2.3-.8 3.5 0"></path></svg>',
         thermometer: '<svg viewBox="0 0 24 24"><path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0Z"></path></svg>',
-        dots: '<svg viewBox="0 0 24 24"><path d="M8 16c0-1.1.9-2 2-2"></path><path d="M12 19c0-1.1.9-2 2-2"></path><path d="M12 13c0-1.1.9-2 2-2"></path><path d="M8 10c0-1.1.9-2 2-2"></path><path d="M15 7c0-1.1.9-2 2-2"></path></svg>'
+        dots: '<svg viewBox="0 0 24 24"><path d="M8 16c0-1.1.9-2 2-2"></path><path d="M12 19c0-1.1.9-2 2-2"></path><path d="M12 13c0-1.1.9-2 2-2"></path><path d="M8 10c0-1.1.9-2 2-2"></path><path d="M15 7c0-1.1.9-2 2-2"></path></svg>',
+        camera: '<svg viewBox="0 0 24 24"><path d="M3 8h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H3z"></path><path d="m17 11 4-2v8l-4-2z"></path><path d="M8 12h.01"></path></svg>'
       };
       return icons[name] || icons.grid;
     }
@@ -381,6 +387,80 @@ export function initDashboard() {
       } catch {
         return null;
       }
+    }
+
+    async function pollCameraConfig() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/camera/stream-url`, {
+          method: "GET",
+          headers: { Accept: "application/json" }
+        });
+        if (!response.ok) return;
+        const payload = await response.json();
+        cameraStreamUrl = String(payload?.stream_url || "").trim();
+        cameraProxyUrl = payload?.proxy_url ? `${API_BASE_URL}${payload.proxy_url}` : "";
+      } catch {
+        // Keep previous camera config values.
+      }
+    }
+
+    function getCameraOpenUrl() {
+      return cameraProxyUrl || cameraStreamUrl || "";
+    }
+
+    function setCameraModalOpen(isOpen) {
+      const modal = document.getElementById("cameraModal");
+      const image = document.getElementById("cameraStreamImage");
+      if (!modal || !image) return;
+
+      modal.classList.toggle("open", isOpen);
+      modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+      document.body.classList.toggle("camera-modal-open", isOpen);
+      if (!isOpen) {
+        image.src = "";
+        activeCameraPondName = "";
+      }
+    }
+
+    function openCameraStream(pondName) {
+      const url = getCameraOpenUrl();
+      const image = document.getElementById("cameraStreamImage");
+      const meta = document.getElementById("cameraModalMeta");
+      const fallback = document.getElementById("cameraStreamFallback");
+      if (!image || !meta || !fallback) return;
+
+      activeCameraPondName = pondName || "Pond";
+      fallback.style.display = "none";
+      image.style.display = "block";
+
+      if (!url) {
+        meta.textContent = `${activeCameraPondName} · stream URL not configured`;
+        image.style.display = "none";
+        fallback.style.display = "grid";
+        setCameraModalOpen(true);
+        return;
+      }
+
+      meta.textContent = `${activeCameraPondName} · connecting...`;
+      let attemptedDirectFallback = false;
+      image.onerror = () => {
+        const failedOnProxy = image.src.includes("/api/camera/stream");
+        if (!attemptedDirectFallback && failedOnProxy && cameraStreamUrl) {
+          attemptedDirectFallback = true;
+          meta.textContent = `${activeCameraPondName} · retrying direct camera...`;
+          image.src = `${cameraStreamUrl}${cameraStreamUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
+          return;
+        }
+
+        meta.textContent = `${activeCameraPondName} · stream offline`;
+        image.style.display = "none";
+        fallback.style.display = "grid";
+      };
+      image.onload = () => {
+        meta.textContent = `${activeCameraPondName} · live`;
+      };
+      image.src = `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
+      setCameraModalOpen(true);
     }
 
     function formatSensorValue(sensor) {
@@ -551,20 +631,34 @@ export function initDashboard() {
       }
 
       function gpsLocationMarkup(pond) {
-        if (!Number.isFinite(pond.lat) || !Number.isFinite(pond.lng)) return "--";
+        if (!Number.isFinite(pond.lat) || !Number.isFinite(pond.lng)) {
+          return `
+            <div class="gps-reading">--</div>
+            <div class="gps-actions">
+              <button class="camera-icon-btn" type="button" onclick="openPondCamera('${String(pond.name).replace(/'/g, "\\'")}')" aria-label="Open live camera" title="Open live camera">
+                ${iconSVG("camera")}
+              </button>
+            </div>
+          `;
+        }
         const lat = Number(pond.lat.toFixed(6));
         const lng = Number(pond.lng.toFixed(6));
         const mapUrl = `https://www.google.com/maps?q=${lat},${lng}`;
         return `
           <div class="gps-reading">${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
-          <a class="gps-icon-link" href="${mapUrl}" target="_blank" rel="noopener noreferrer" aria-label="Open Pond location in Google Maps" title="Open Pond location in Google Maps">
-            <span class="gps-pin" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12Z"></path>
-                <circle cx="12" cy="10" r="2.5"></circle>
-              </svg>
-            </span>
-          </a>
+          <div class="gps-actions">
+            <button class="camera-icon-btn" type="button" onclick="openPondCamera('${String(pond.name).replace(/'/g, "\\'")}')" aria-label="Open live camera" title="Open live camera">
+              ${iconSVG("camera")}
+            </button>
+            <a class="gps-icon-link" href="${mapUrl}" target="_blank" rel="noopener noreferrer" aria-label="Open Pond location in Google Maps" title="Open Pond location in Google Maps">
+              <span class="gps-pin" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12Z"></path>
+                  <circle cx="12" cy="10" r="2.5"></circle>
+                </svg>
+              </span>
+            </a>
+          </div>
         `;
       }
 
@@ -1314,7 +1408,10 @@ export function initDashboard() {
       mobileOverlay.addEventListener("click", closeMobileSidebar);
     }
     const onEscape = (event) => {
-      if (event.key === "Escape") closeMobileSidebar();
+      if (event.key === "Escape") {
+        closeMobileSidebar();
+        setCameraModalOpen(false);
+      }
     };
     const onResize = () => {
       if (!isMobileViewport()) closeMobileSidebar();
@@ -1373,6 +1470,13 @@ export function initDashboard() {
     window.generateReport = generateReport;
     window.addPond = addPond;
     window.deletePond = deletePond;
+    window.openPondCamera = openCameraStream;
+
+    const cameraModalClose = document.getElementById("cameraModalClose");
+    const cameraModalBackdrop = document.getElementById("cameraModalBackdrop");
+    const closeCameraModal = () => setCameraModalOpen(false);
+    if (cameraModalClose) cameraModalClose.addEventListener("click", closeCameraModal);
+    if (cameraModalBackdrop) cameraModalBackdrop.addEventListener("click", closeCameraModal);
 
     document.getElementById("loginForm").addEventListener("submit", handleLogin);
     document.getElementById("logoutBtn").addEventListener("click", logout);
@@ -1398,14 +1502,18 @@ export function initDashboard() {
       pollPredictionsData();
     }, SENSOR_POLL_MS);
     pollGpsData();
+    pollCameraConfig();
     sensorPollInterval = setInterval(pollSensorData, SENSOR_POLL_MS);
     gpsPollInterval = setInterval(pollGpsData, GPS_POLL_MS);
+    cameraConfigPollInterval = setInterval(pollCameraConfig, CAMERA_CONFIG_POLL_MS);
     if (localStorage.getItem(AUTH_KEY) === "1") showApp();
     else showLogin();
     return () => {
       if (sensorPollInterval) clearInterval(sensorPollInterval);
       if (gpsPollInterval) clearInterval(gpsPollInterval);
+      if (cameraConfigPollInterval) clearInterval(cameraConfigPollInterval);
       closeMobileSidebar();
+      setCameraModalOpen(false);
       if (sidebarResizer) {
         sidebarResizer.removeEventListener("pointerdown", onSidebarDragStart);
         sidebarResizer.removeEventListener("dblclick", resetSidebarWidth);
@@ -1424,5 +1532,8 @@ export function initDashboard() {
       delete window.generateReport;
       delete window.addPond;
       delete window.deletePond;
+      delete window.openPondCamera;
+      if (cameraModalClose) cameraModalClose.removeEventListener("click", closeCameraModal);
+      if (cameraModalBackdrop) cameraModalBackdrop.removeEventListener("click", closeCameraModal);
     };
 }

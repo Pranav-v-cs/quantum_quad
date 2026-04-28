@@ -2,6 +2,7 @@ import React from "react";
 import MobileTopBar from "./MobileTopBar";
 import SidebarNav from "./SidebarNav";
 import Topbar from "./Topbar";
+import CameraStreamModal from "./CameraStreamModal";
 import DashboardView from "./views/DashboardView";
 import PondsView from "./views/PondsView";
 import AlertsView from "./views/AlertsView";
@@ -26,6 +27,7 @@ export default function AppShell() {
             <AlertsView />
             <ProfileView />
           </div>
+          <CameraStreamModal />
         </main>
       </div>
     </div>

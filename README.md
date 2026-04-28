@@ -4,6 +4,7 @@ Water quality monitoring project with:
 
 - Sensor firmware (`ino files/main.ino`) that reads pH, turbidity, TDS, DO, temperature
 - ESP32 bridge firmware (`ino files/esp32_interfacing.ino`) that posts readings to backend
+- ESP32-CAM streaming firmware (`ino files/esp32_cam_live_stream.ino`) for live MJPEG feed
 - Flask backend (`backend/`) that stores telemetry in SQLite and serves APIs
 - Vite frontend dashboard (`frontend/`) that visualizes live readings
 
@@ -20,8 +21,13 @@ Water quality monitoring project with:
 2. Arduino sends a formatted line over serial.
 3. ESP32 (`esp32_interfacing.ino`) parses the line and sends JSON to backend:
    - `POST /api/readings`
-4. Backend stores readings in `backend/data/telemetry.db`.
-5. Frontend polls backend every 10 seconds using:
+4. ESP32-CAM serves MJPEG stream over HTTP:
+   - `http://<esp32-ip>:81/stream`
+5. Backend can expose stream config and proxy:
+   - `GET /api/camera/stream-url`
+   - `GET /api/camera/stream`
+6. Backend stores readings in `backend/data/telemetry.db`.
+7. Frontend polls backend every 10 seconds using:
    - `GET /api/readings/latest?sensor_only=1`
 6. Frontend polls prediction endpoint for forecast points:
    - `GET /api/predictions?horizon=24&limit_history=all&history_preview=16&source=sensor&target=temperature`
@@ -50,6 +56,7 @@ Current keys:
 - `JWT_SECRET`
 - `APP_ENV`
 - `PORT`
+- `ESP32_CAM_STREAM_URL` (example: `http://192.168.1.55:81/stream`)
 
 Security guidance:
 
@@ -77,6 +84,8 @@ Backend runs on `http://localhost:9999`.
 - `GET /api/readings/latest?sensor_only=1`
 - `GET /api/readings?limit=50&source=sensor`
 - `GET /api/predictions?horizon=24&limit_history=all&history_preview=16&source=sensor&target=temperature`
+- `GET /api/camera/stream-url`
+- `GET /api/camera/stream`
 - `GET /api/db/details`
 
 ### Sample POST Payload
@@ -140,6 +149,25 @@ npm run preview
 - Parses serial line
 - POSTs parsed readings to Flask backend (`SERVER_URL`)
 
+### `ino files/esp32_cam_live_stream.ino`
+
+- Runs MJPEG camera server on ESP32-CAM
+- Stream URL: `http://<esp32-ip>:81/stream`
+- Lightweight HTML preview: `http://<esp32-ip>/`
+
+## Live Camera Integration
+
+1. Flash `ino files/esp32_cam_live_stream.ino` to your ESP32-CAM (AI Thinker board).
+2. Open serial monitor at `115200` and note camera IP.
+3. Set backend environment:
+   - `ESP32_CAM_STREAM_URL=http://<esp32-ip>:81/stream`
+4. Restart Flask backend.
+5. In dashboard, click the camera icon near each pond GPS block to open live stream modal.
+
+Notes:
+- Frontend first tries proxied stream (`/api/camera/stream`) for same-origin behavior.
+- If proxy URL is not configured, modal shows a helpful fallback state.
+
 
 ## Local Run Order
 
@@ -160,3 +188,4 @@ npm run preview
 - No DB rows:
   - Check backend logs for `POST /api/readings` errors
   - Validate payload numeric fields: `temperature`, `turbidity`, `ph`, `tds`, `do`
+

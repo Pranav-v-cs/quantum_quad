@@ -1,7 +1,7 @@
 import sqlite3
 import os
 import base64
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
 
@@ -189,6 +189,43 @@ def _prune_gps(conn):
     )
 
 
+def _prediction_target_column(target):
+    key = str(target or "").strip().lower()
+    mapping = {
+        "temperature": "temperature",
+        "turbidity": "turbidity",
+        "ph": "ph",
+        "tds": "tds",
+        "do": "dissolved_oxygen",
+    }
+    return key, mapping.get(key)
+
+
+def _safe_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _estimate_step_seconds(rows):
+    if len(rows) < 2:
+        return 60
+    deltas = []
+    prev = None
+    for row in rows:
+        dt = datetime.fromisoformat(row["created_at"])
+        if prev is not None:
+            delta = int((dt - prev).total_seconds())
+            if delta > 0:
+                deltas.append(delta)
+        prev = dt
+    if not deltas:
+        return 60
+    deltas.sort()
+    return deltas[len(deltas) // 2]
+
+
 def _cors(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
@@ -205,6 +242,7 @@ def after_request(response):
 @app.route("/api/readings/latest", methods=["OPTIONS"])
 @app.route("/api/gps", methods=["OPTIONS"])
 @app.route("/api/gps/latest", methods=["OPTIONS"])
+@app.route("/api/predictions", methods=["OPTIONS"])
 @app.route("/api/camera/frame", methods=["OPTIONS"])
 @app.route("/api/camera/frame/latest", methods=["OPTIONS"])
 @app.route("/api/db/details", methods=["OPTIONS"])
@@ -228,6 +266,7 @@ def root():
                 "post_reading": "/api/readings",
                 "latest_reading": "/api/readings/latest",
                 "history": "/api/readings?limit=50",
+                "predictions": "/api/predictions?horizon=24&limit_history=all&source=sensor&target=temperature",
                 "post_gps": "/api/gps",
                 "latest_gps": "/api/gps/latest",
                 "post_camera_frame": "/api/camera/frame?camera_id=QQ-CAM-01",
@@ -331,6 +370,129 @@ def get_reading_history():
             conn.close()
 
     return jsonify({"count": len(rows), "readings": [_serialize_reading(row) for row in rows]})
+
+
+@app.get("/api/predictions")
+def get_predictions():
+    target_key, target_col = _prediction_target_column(request.args.get("target", "temperature"))
+    if not target_col:
+        return jsonify({"error": "target must be one of: temperature, turbidity, ph, tds, do"}), 400
+
+    source = str(request.args.get("source", "sensor")).strip().lower()
+    if source not in {"sensor", "mock", "all"}:
+        source = "sensor"
+
+    try:
+        horizon = max(1, min(200, int(request.args.get("horizon", "24"))))
+    except ValueError:
+        horizon = 24
+
+    limit_history_raw = str(request.args.get("limit_history", "all")).strip().lower()
+    history_preview_raw = str(request.args.get("history_preview", "16")).strip()
+    try:
+        history_preview = max(1, min(200, int(history_preview_raw)))
+    except ValueError:
+        history_preview = 16
+
+    where = []
+    values = []
+    if source in {"sensor", "mock"}:
+        where.append("source = ?")
+        values.append(source)
+
+    sql = "SELECT * FROM telemetry"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY id DESC"
+    if limit_history_raw != "all":
+        try:
+            limit_history = max(2, min(10000, int(limit_history_raw)))
+        except ValueError:
+            limit_history = 500
+        sql += " LIMIT ?"
+        values.append(limit_history)
+
+    with DB_LOCK:
+        conn = _get_db_connection()
+        try:
+            rows_desc = conn.execute(sql, values).fetchall()
+        finally:
+            conn.close()
+
+    rows = list(reversed(rows_desc))
+    if len(rows) < 2:
+        return (
+            jsonify(
+                {
+                    "error": "Need at least 2 historical readings for predictions",
+                    "history_points": len(rows),
+                    "horizon": horizon,
+                    "target": target_key,
+                }
+            ),
+            400,
+        )
+
+    history_values = []
+    for row in rows:
+        val = _safe_float(row[target_col])
+        if val is not None:
+            history_values.append(val)
+    if len(history_values) < 2:
+        return jsonify({"error": "Insufficient numeric history for selected target"}), 400
+
+    step_seconds = _estimate_step_seconds(rows)
+    last_row = rows[-1]
+    last_value = float(last_row[target_col])
+
+    lookback = min(12, len(history_values) - 1)
+    deltas = []
+    for idx in range(len(history_values) - lookback, len(history_values)):
+        if idx <= 0:
+            continue
+        deltas.append(history_values[idx] - history_values[idx - 1])
+    avg_delta = sum(deltas) / len(deltas) if deltas else 0.0
+
+    mean = sum(history_values) / len(history_values)
+    variance = sum((v - mean) ** 2 for v in history_values) / max(1, len(history_values) - 1)
+    std = variance ** 0.5
+    anomaly_threshold = 2.5
+
+    ts = datetime.fromisoformat(last_row["created_at"])
+    predictions = []
+    predicted_anomaly_count = 0
+    for i in range(1, horizon + 1):
+        predicted = last_value + avg_delta * i
+        next_ts = ts + timedelta(seconds=step_seconds * i)
+        z = 0.0 if std == 0 else (predicted - mean) / std
+        is_anomaly = abs(z) > anomaly_threshold
+        if is_anomaly:
+            predicted_anomaly_count += 1
+        predictions.append(
+            {
+                "timestamp": next_ts.isoformat(),
+                target_key: round(predicted, 4),
+                "z_score": round(z, 4),
+                "is_anomaly": is_anomaly,
+            }
+        )
+
+    history_context = [_serialize_reading(row) for row in rows[-history_preview:]]
+    return jsonify(
+        {
+            "history_points": len(rows),
+            "horizon": horizon,
+            "step_seconds": step_seconds,
+            "target": target_key,
+            "anomaly_threshold": anomaly_threshold,
+            "history_anomaly_count": 0,
+            "predicted_anomaly_count": predicted_anomaly_count,
+            "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            "last_observation": _serialize_reading(last_row),
+            "history_context": history_context,
+            "predictions": predictions,
+        }
+    )
 
 
 @app.post("/api/gps")

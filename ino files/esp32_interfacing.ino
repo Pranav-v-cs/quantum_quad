@@ -1,5 +1,6 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <ArduinoOTA.h>
 
 HardwareSerial mySerial(2);
 
@@ -7,6 +8,8 @@ const char* WIFI_SSID = "WIFI_SSID_FROM_ENV";
 const char* WIFI_PASS = "WIFI_PASSWORD_FROM_ENV";
 const char* SERVER_URL = "http://192.168.225.118:9999/api/readings";
 const char* STATION_ID = "QQ-dbafa5-A";
+const char* OTA_HOSTNAME = "qq-esp32-interfacing";
+const char* OTA_PASSWORD = "CHANGE_OTA_PASSWORD";
 
 bool extractValue(const String& line, const String& key, float& out) {
   int start = line.indexOf(key);
@@ -28,16 +31,44 @@ bool extractValue(const String& line, const String& key, float& out) {
 }
 
 void connectWiFi() {
+  WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Serial.print("[WIFI] Connecting");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
+    Serial.print(".");
   }
+  Serial.println();
+  Serial.print("[WIFI] Connected IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+void setupOTA() {
+  ArduinoOTA.setHostname(OTA_HOSTNAME);
+  ArduinoOTA.setPassword(OTA_PASSWORD);
+
+  ArduinoOTA.onStart([]() {
+    Serial.println("[OTA] Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\n[OTA] End");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("[OTA] Progress: %u%%\r", (progress * 100U) / total);
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("[OTA] Error[%u]\n", error);
+  });
+
+  ArduinoOTA.begin();
+  Serial.println("[OTA] Ready");
 }
 
 void setup() {
   Serial.begin(115200);
   mySerial.begin(9600, SERIAL_8N1, 16, 17);
   connectWiFi();
+  setupOTA();
 }
 
 void postReading(const String& rawLine) {
@@ -81,6 +112,8 @@ void postReading(const String& rawLine) {
 }
 
 void loop() {
+  ArduinoOTA.handle();
+
   if (mySerial.available()) {
     String data = mySerial.readStringUntil('\n');
     data.trim();

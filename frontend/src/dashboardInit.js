@@ -4,7 +4,7 @@ export function initDashboard() {
     const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:9999").replace(/\/$/, "");
     const SENSOR_POLL_MS = 10000;
     const GPS_POLL_MS = 10000;
-    const CAMERA_CONFIG_POLL_MS = 30000;
+    const CAMERA_FRAME_POLL_MS = 2000;
     const DASHBOARD_REFRESH_SECONDS = Math.round(SENSOR_POLL_MS / 1000);
     const DEFAULT_PREDICTION_HORIZON = 24;
     const DEFAULT_PREDICTION_HISTORY_CONTEXT_POINTS = 16;
@@ -243,7 +243,7 @@ export function initDashboard() {
     let predictionsChart;
     let sensorPollInterval;
     let gpsPollInterval;
-    let cameraConfigPollInterval;
+    let cameraFramePollInterval;
     let hasLiveSensorData = false;
     let predictionsTarget = "temperature";
     let predictionHorizon = DEFAULT_PREDICTION_HORIZON;
@@ -262,8 +262,6 @@ export function initDashboard() {
     };
     const predictionHorizonOptions = [12, 24, 36];
     const predictionHistoryOptions = [8, 16, 24, 32];
-    let cameraStreamUrl = "";
-    let cameraProxyUrl = "";
     let activeCameraPondName = "";
 
     const chartConfig = {
@@ -392,23 +390,16 @@ export function initDashboard() {
       }
     }
 
-    async function pollCameraConfig() {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/camera/stream-url`, {
-          method: "GET",
-          headers: { Accept: "application/json" }
-        });
-        if (!response.ok) return;
-        const payload = await response.json();
-        cameraStreamUrl = String(payload?.stream_url || "").trim();
-        cameraProxyUrl = payload?.proxy_url ? `${API_BASE_URL}${payload.proxy_url}` : "";
-      } catch {
-        // Keep previous camera config values.
-      }
-    }
-
-    function getCameraOpenUrl() {
-      return cameraProxyUrl || cameraStreamUrl || "";
+    async function fetchLatestCameraFrame() {
+      const response = await fetch(`${API_BASE_URL}/api/camera/frame/latest`, {
+        method: "GET",
+        headers: { Accept: "application/json" }
+      });
+      if (!response.ok) return null;
+      const payload = await response.json();
+      const frame = payload?.frame;
+      if (!frame?.data_base64) return null;
+      return frame;
     }
 
     function setCameraModalOpen(isOpen) {
@@ -420,50 +411,55 @@ export function initDashboard() {
       modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
       document.body.classList.toggle("camera-modal-open", isOpen);
       if (!isOpen) {
+        if (cameraFramePollInterval) {
+          clearInterval(cameraFramePollInterval);
+          cameraFramePollInterval = undefined;
+        }
         image.src = "";
         activeCameraPondName = "";
       }
     }
 
+    async function refreshCameraModalFrame() {
+      const image = document.getElementById("cameraStreamImage");
+      const meta = document.getElementById("cameraModalMeta");
+      const fallback = document.getElementById("cameraStreamFallback");
+      if (!image || !meta || !fallback) return;
+
+      try {
+        const frame = await fetchLatestCameraFrame();
+        if (!frame) {
+          meta.textContent = `${activeCameraPondName} · no frame available`;
+          image.style.display = "none";
+          fallback.style.display = "grid";
+          return;
+        }
+        fallback.style.display = "none";
+        image.style.display = "block";
+        image.src = `data:image/jpeg;base64,${frame.data_base64}`;
+        meta.textContent = `${activeCameraPondName} · last frame ${new Date(frame.created_at).toLocaleTimeString("en-GB")}`;
+      } catch {
+        meta.textContent = `${activeCameraPondName} · camera offline`;
+        image.style.display = "none";
+        fallback.style.display = "grid";
+      }
+    }
+
     function openCameraStream(pondName) {
-      const url = getCameraOpenUrl();
       const image = document.getElementById("cameraStreamImage");
       const meta = document.getElementById("cameraModalMeta");
       const fallback = document.getElementById("cameraStreamFallback");
       if (!image || !meta || !fallback) return;
 
       activeCameraPondName = pondName || "Pond";
+      meta.textContent = `${activeCameraPondName} · connecting...`;
       fallback.style.display = "none";
       image.style.display = "block";
-
-      if (!url) {
-        meta.textContent = `${activeCameraPondName} · stream URL not configured`;
-        image.style.display = "none";
-        fallback.style.display = "grid";
-        setCameraModalOpen(true);
-        return;
-      }
-
       meta.textContent = `${activeCameraPondName} · connecting...`;
-      let attemptedDirectFallback = false;
-      image.onerror = () => {
-        const failedOnProxy = image.src.includes("/api/camera/stream");
-        if (!attemptedDirectFallback && failedOnProxy && cameraStreamUrl) {
-          attemptedDirectFallback = true;
-          meta.textContent = `${activeCameraPondName} · retrying direct camera...`;
-          image.src = `${cameraStreamUrl}${cameraStreamUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
-          return;
-        }
-
-        meta.textContent = `${activeCameraPondName} · stream offline`;
-        image.style.display = "none";
-        fallback.style.display = "grid";
-      };
-      image.onload = () => {
-        meta.textContent = `${activeCameraPondName} · live`;
-      };
-      image.src = `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
       setCameraModalOpen(true);
+      refreshCameraModalFrame();
+      if (cameraFramePollInterval) clearInterval(cameraFramePollInterval);
+      cameraFramePollInterval = setInterval(refreshCameraModalFrame, CAMERA_FRAME_POLL_MS);
     }
 
     function formatSensorValue(sensor) {
@@ -1492,16 +1488,14 @@ export function initDashboard() {
       pollPredictionsData();
     }, SENSOR_POLL_MS);
     pollGpsData();
-    pollCameraConfig();
     sensorPollInterval = setInterval(pollSensorData, SENSOR_POLL_MS);
     gpsPollInterval = setInterval(pollGpsData, GPS_POLL_MS);
-    cameraConfigPollInterval = setInterval(pollCameraConfig, CAMERA_CONFIG_POLL_MS);
     if (localStorage.getItem(AUTH_KEY) === "1") showApp();
     else showLogin();
     return () => {
       if (sensorPollInterval) clearInterval(sensorPollInterval);
       if (gpsPollInterval) clearInterval(gpsPollInterval);
-      if (cameraConfigPollInterval) clearInterval(cameraConfigPollInterval);
+      if (cameraFramePollInterval) clearInterval(cameraFramePollInterval);
       closeMobileSidebar();
       setCameraModalOpen(false);
       if (sidebarResizer) {

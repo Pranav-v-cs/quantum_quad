@@ -1,11 +1,11 @@
 import sqlite3
 import os
+import base64
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
 
-import requests
-from flask import Flask, Response, jsonify, request, stream_with_context
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
@@ -13,7 +13,15 @@ DB_LOCK = Lock()
 DB_PATH = Path(__file__).resolve().parent / "data" / "telemetry.db"
 MAX_TELEMETRY_ROWS = 5000
 MAX_GPS_ROWS = 10000
-CAMERA_STREAM_URL = os.getenv("ESP32_CAM_STREAM_URL", "http://192.168.1.9:81/stream").strip()
+MAX_CAMERA_FRAME_BYTES = 300 * 1024
+
+CAMERA_LOCK = Lock()
+LATEST_CAMERA_FRAME = {
+    "camera_id": None,
+    "created_at": None,
+    "content_type": None,
+    "bytes": None,
+}
 
 
 def _get_db_connection():
@@ -197,8 +205,8 @@ def after_request(response):
 @app.route("/api/readings/latest", methods=["OPTIONS"])
 @app.route("/api/gps", methods=["OPTIONS"])
 @app.route("/api/gps/latest", methods=["OPTIONS"])
-@app.route("/api/camera/stream-url", methods=["OPTIONS"])
-@app.route("/api/camera/stream", methods=["OPTIONS"])
+@app.route("/api/camera/frame", methods=["OPTIONS"])
+@app.route("/api/camera/frame/latest", methods=["OPTIONS"])
 @app.route("/api/db/details", methods=["OPTIONS"])
 @app.route("/health", methods=["OPTIONS"])
 def options_handler():
@@ -222,8 +230,8 @@ def root():
                 "history": "/api/readings?limit=50",
                 "post_gps": "/api/gps",
                 "latest_gps": "/api/gps/latest",
-                "camera_stream_url": "/api/camera/stream-url",
-                "camera_stream_proxy": "/api/camera/stream",
+                "post_camera_frame": "/api/camera/frame?camera_id=QQ-CAM-01",
+                "latest_camera_frame": "/api/camera/frame/latest",
                 "db_details": "/api/db/details",
             },
         }
@@ -370,45 +378,58 @@ def get_latest_gps():
     return jsonify({"gps": _serialize_gps(row)})
 
 
-@app.get("/api/camera/stream-url")
-def get_camera_stream_url():
-    stream_url = CAMERA_STREAM_URL or None
+@app.post("/api/camera/frame")
+def post_camera_frame():
+    camera_id = str(request.args.get("camera_id", "QQ-CAM-01")).strip() or "QQ-CAM-01"
+    content_type = (request.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+    frame_bytes = request.get_data(cache=False, as_text=False)
+
+    if content_type != "image/jpeg":
+        return jsonify({"error": "Content-Type must be image/jpeg"}), 400
+    if not frame_bytes:
+        return jsonify({"error": "Empty frame payload"}), 400
+    if len(frame_bytes) > MAX_CAMERA_FRAME_BYTES:
+        return (
+            jsonify(
+                {
+                    "error": "Frame too large",
+                    "max_bytes": MAX_CAMERA_FRAME_BYTES,
+                    "received_bytes": len(frame_bytes),
+                }
+            ),
+            413,
+        )
+
+    created_at = datetime.now(timezone.utc).isoformat()
+    with CAMERA_LOCK:
+        LATEST_CAMERA_FRAME["camera_id"] = camera_id
+        LATEST_CAMERA_FRAME["created_at"] = created_at
+        LATEST_CAMERA_FRAME["content_type"] = "image/jpeg"
+        LATEST_CAMERA_FRAME["bytes"] = frame_bytes
+
     return jsonify(
         {
-            "stream_url": stream_url,
-            "proxy_url": "/api/camera/stream" if stream_url else None,
-            "configured": bool(stream_url),
+            "status": "ok",
+            "camera_id": camera_id,
+            "created_at": created_at,
+            "bytes": len(frame_bytes),
         }
-    )
+    ), 201
 
 
-@app.get("/api/camera/stream")
-def proxy_camera_stream():
-    if not CAMERA_STREAM_URL:
-        return jsonify(
-            {
-                "error": "ESP32_CAM_STREAM_URL is not configured",
-                "hint": "Set ESP32_CAM_STREAM_URL (example: http://192.168.1.55:81/stream)",
-            }
-        ), 400
-
-    try:
-        upstream = requests.get(CAMERA_STREAM_URL, stream=True, timeout=(4, 20))
-    except requests.RequestException as exc:
-        return jsonify({"error": f"Failed to connect camera stream: {exc}"}), 502
-
-    content_type = upstream.headers.get("Content-Type", "multipart/x-mixed-replace; boundary=frame")
-
-    @stream_with_context
-    def generate():
-        try:
-            for chunk in upstream.iter_content(chunk_size=16 * 1024):
-                if chunk:
-                    yield chunk
-        finally:
-            upstream.close()
-
-    return Response(generate(), status=upstream.status_code, content_type=content_type)
+@app.get("/api/camera/frame/latest")
+def get_latest_camera_frame():
+    with CAMERA_LOCK:
+        if not LATEST_CAMERA_FRAME["bytes"]:
+            return jsonify({"configured": False, "frame": None}), 404
+        frame_payload = {
+            "camera_id": LATEST_CAMERA_FRAME["camera_id"],
+            "created_at": LATEST_CAMERA_FRAME["created_at"],
+            "content_type": LATEST_CAMERA_FRAME["content_type"],
+            "bytes": len(LATEST_CAMERA_FRAME["bytes"]),
+            "data_base64": base64.b64encode(LATEST_CAMERA_FRAME["bytes"]).decode("ascii"),
+        }
+    return jsonify({"configured": True, "frame": frame_payload})
 
 
 @app.get("/api/db/details")

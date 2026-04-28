@@ -34,10 +34,7 @@ float phValue;
 int tdsValue;
 float DOValue;
 
-int analogBuffer[SCOUNT];     
 int analogBufferTemp[SCOUNT];
-int analogBufferIndex = 0;
-int copyIndex = 0;
 
 float averageVoltage = 0;
 

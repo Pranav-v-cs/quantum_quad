@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <TinyGPS++.h>
+#include <math.h>
 
 TinyGPSPlus gps;
 HardwareSerial gpsSerial(2);  // UART2 on ESP32

@@ -22,8 +22,8 @@
 
 const char* WIFI_SSID = "YOUR_WIFI_SSID";
 const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
-const char* FLASK_HEALTH_URL = "http://YOUR_FLASK_HOST:5000/health";
-const char* FLASK_FRAME_UPLOAD_URL = "http://YOUR_FLASK_HOST:5000/api/camera/frame";
+const char* FLASK_HEALTH_URL = "http://192.168.225.118:9999/health";
+const char* FLASK_FRAME_UPLOAD_URL = "http://192.168.225.118:9999/api/camera/frame";
 const char* CAMERA_ID = "QQ-CAM-01";
 const uint32_t FRAME_UPLOAD_MS = 5000;
 

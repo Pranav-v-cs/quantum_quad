@@ -13,7 +13,7 @@ DB_LOCK = Lock()
 DB_PATH = Path(__file__).resolve().parent / "data" / "telemetry.db"
 MAX_TELEMETRY_ROWS = 5000
 MAX_GPS_ROWS = 10000
-CAMERA_STREAM_URL = "http://192.168.1.9:81/stream"
+CAMERA_STREAM_URL = os.getenv("ESP32_CAM_STREAM_URL", "http://192.168.1.9:81/stream").strip()
 
 
 def _get_db_connection():

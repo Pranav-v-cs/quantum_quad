@@ -8,7 +8,7 @@ HardwareSerial gpsSerial(2);  // UART2 on ESP32
 // Update these before upload.
 const char* WIFI_SSID = "YOUR_WIFI_SSID";
 const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
-const char* GPS_API_URL = "http://192.168.1.14:9999/api/gps";
+const char* GPS_API_URL = "http://192.168.225.118:9999/api/gps";
 
 // NEO-6M serial pins on ESP32
 const int GPS_RX_PIN = 16;  // ESP32 RX <- NEO-6M TX

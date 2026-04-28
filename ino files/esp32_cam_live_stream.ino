@@ -1,6 +1,6 @@
 #include "esp_camera.h"
 #include <WiFi.h>
-#include "esp_http_server.h"
+#include <HTTPClient.h>
 
 // AI Thinker ESP32-CAM pin map
 #define PWDN_GPIO_NUM     32
@@ -22,92 +22,12 @@
 
 const char* WIFI_SSID = "YOUR_WIFI_SSID";
 const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
+const char* FLASK_HEALTH_URL = "http://YOUR_FLASK_HOST:5000/health";
+const char* FLASK_FRAME_UPLOAD_URL = "http://YOUR_FLASK_HOST:5000/api/camera/frame";
+const char* CAMERA_ID = "QQ-CAM-01";
+const uint32_t FRAME_UPLOAD_MS = 5000;
 
-static const char* STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=frame";
-static const char* STREAM_BOUNDARY = "\r\n--frame\r\n";
-static const char* STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
-
-httpd_handle_t camera_httpd = NULL;
-httpd_handle_t stream_httpd = NULL;
-
-static esp_err_t index_handler(httpd_req_t *req) {
-  const char* html =
-    "<html><head><title>ESP32-CAM Stream</title></head>"
-    "<body style='margin:0;background:#101616;display:grid;place-items:center;height:100vh;'>"
-    "<img src='/stream' style='max-width:100%;height:auto;border-radius:10px;'/>"
-    "</body></html>";
-  httpd_resp_set_type(req, "text/html");
-  return httpd_resp_send(req, html, HTTPD_RESP_USE_STRLEN);
-}
-
-static esp_err_t stream_handler(httpd_req_t *req) {
-  camera_fb_t *fb = NULL;
-  char part_buf[64];
-
-  httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
-  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-  httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-
-  while (true) {
-    fb = esp_camera_fb_get();
-    if (!fb) {
-      Serial.println("[CAM] Frame capture failed");
-      continue;
-    }
-
-    if (httpd_resp_send_chunk(req, STREAM_BOUNDARY, strlen(STREAM_BOUNDARY)) != ESP_OK) {
-      esp_camera_fb_return(fb);
-      break;
-    }
-
-    size_t hlen = snprintf(part_buf, sizeof(part_buf), STREAM_PART, fb->len);
-    if (httpd_resp_send_chunk(req, part_buf, hlen) != ESP_OK) {
-      esp_camera_fb_return(fb);
-      break;
-    }
-
-    if (httpd_resp_send_chunk(req, (const char*)fb->buf, fb->len) != ESP_OK) {
-      esp_camera_fb_return(fb);
-      break;
-    }
-
-    esp_camera_fb_return(fb);
-    delay(10);
-  }
-
-  return ESP_OK;
-}
-
-void startCameraServer() {
-  httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.server_port = 80;
-
-  httpd_uri_t index_uri = {
-    .uri = "/",
-    .method = HTTP_GET,
-    .handler = index_handler,
-    .user_ctx = NULL
-  };
-
-  if (httpd_start(&camera_httpd, &config) == ESP_OK) {
-    httpd_register_uri_handler(camera_httpd, &index_uri);
-  }
-
-  httpd_config_t stream_config = HTTPD_DEFAULT_CONFIG();
-  stream_config.server_port = 81;
-  stream_config.ctrl_port = 32769;
-
-  httpd_uri_t stream_uri = {
-    .uri = "/stream",
-    .method = HTTP_GET,
-    .handler = stream_handler,
-    .user_ctx = NULL
-  };
-
-  if (httpd_start(&stream_httpd, &stream_config) == ESP_OK) {
-    httpd_register_uri_handler(stream_httpd, &stream_uri);
-  }
-}
+uint32_t lastUploadMs = 0;
 
 bool initCamera() {
   camera_config_t config;
@@ -163,6 +83,47 @@ void connectWiFi() {
   Serial.println(WiFi.localIP());
 }
 
+void postFrameToFlask() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[HTTP] WiFi disconnected");
+    return;
+  }
+
+  camera_fb_t* fb = esp_camera_fb_get();
+  if (!fb) {
+    Serial.println("[CAM] Frame capture failed");
+    return;
+  }
+
+  String endpoint = String(FLASK_FRAME_UPLOAD_URL) + "?camera_id=" + CAMERA_ID;
+  size_t frameBytes = fb->len;
+  HTTPClient http;
+  http.begin(endpoint);
+  http.addHeader("Content-Type", "image/jpeg");
+  int statusCode = http.POST(fb->buf, fb->len);
+  String responseBody = http.getString();
+  http.end();
+  esp_camera_fb_return(fb);
+
+  Serial.printf("[HTTP] POST %s -> %d, bytes=%u\n", endpoint.c_str(), statusCode, (unsigned)frameBytes);
+  if (responseBody.length() > 0) {
+    Serial.printf("[HTTP] Response: %s\n", responseBody.c_str());
+  }
+}
+
+void checkFlaskHealth() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  HTTPClient http;
+  http.begin(FLASK_HEALTH_URL);
+  int statusCode = http.GET();
+  String responseBody = http.getString();
+  http.end();
+  Serial.printf("[HTTP] Health %s -> %d\n", FLASK_HEALTH_URL, statusCode);
+  if (responseBody.length() > 0) {
+    Serial.printf("[HTTP] Health body: %s\n", responseBody.c_str());
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   delay(300);
@@ -174,14 +135,16 @@ void setup() {
   }
 
   connectWiFi();
-  startCameraServer();
+  checkFlaskHealth();
 
-  Serial.println("[BOOT] Stream ready");
-  Serial.print("[BOOT] Open: http://");
-  Serial.print(WiFi.localIP());
-  Serial.println(":81/stream");
+  Serial.println("[BOOT] Camera upload client ready");
+  Serial.printf("[BOOT] Upload target: %s\n", FLASK_FRAME_UPLOAD_URL);
 }
 
 void loop() {
-  delay(1000);
+  if (millis() - lastUploadMs >= FRAME_UPLOAD_MS) {
+    lastUploadMs = millis();
+    postFrameToFlask();
+  }
+  delay(20);
 }

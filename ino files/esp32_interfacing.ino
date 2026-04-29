@@ -72,11 +72,12 @@ void setup() {
 }
 
 void postReading(const String& rawLine) {
-  float temperature, turbidity, ph, tds, dO;
+  float temperature, turbidity, ph, tds, dO, rawTurbidity;
 
   bool ok =
     extractValue(rawLine, "Temperature", temperature) &&
     extractValue(rawLine, "Turbidity", turbidity) &&
+    extractValue(rawLine, "RawTurbidity", rawTurbidity) &&
     extractValue(rawLine, "pH", ph) &&
     extractValue(rawLine, "TDS", tds) &&
     extractValue(rawLine, "DO", dO);
@@ -97,6 +98,7 @@ void postReading(const String& rawLine) {
     "\"station_id\":\"" + String(STATION_ID) + "\","
     "\"temperature\":" + String(temperature, 2) + ","
     "\"turbidity\":" + String(turbidity, 2) + ","
+    "\"raw_turbidity\":" + String(rawTurbidity, 0) + ","
     "\"ph\":" + String(ph, 2) + ","
     "\"tds\":" + String(tds, 2) + ","
     "\"do\":" + String(dO, 2) + ","

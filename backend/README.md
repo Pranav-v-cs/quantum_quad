@@ -11,6 +11,7 @@ pip install -r requirements.txt
 ## Run
 
 ```bash
+export ESP_CAM_STREAM_URL="http://<esp32-cam-ip>/stream"
 python app.py
 ```
 
@@ -78,6 +79,15 @@ Expected JSON payload:
 
 - Returns latest GPS fix.
 - Frontend add-pond flow auto-reads this endpoint.
+
+### `GET /api/camera/frame/latest`
+
+- Backend now pulls a frame from the ESP32-CAM stream URL set in `ESP_CAM_STREAM_URL`.
+- Response includes base64 JPEG data for frontend display.
+
+### `GET /api/camera/source`
+
+- Returns whether stream source is configured and the current mode (`backend_pull`).
 
 ## GPS Serial Bridge
 

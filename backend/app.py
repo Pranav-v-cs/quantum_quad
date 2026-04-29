@@ -6,6 +6,7 @@ from pathlib import Path
 from threading import Lock
 
 from flask import Flask, jsonify, request
+import requests
 
 app = Flask(__name__)
 
@@ -14,6 +15,8 @@ DB_PATH = Path(__file__).resolve().parent / "data" / "telemetry.db"
 MAX_TELEMETRY_ROWS = 5000
 MAX_GPS_ROWS = 10000
 MAX_CAMERA_FRAME_BYTES = 300 * 1024
+CAMERA_REFRESH_MIN_SECONDS = 0.25
+ESP_CAM_STREAM_URL = (os.getenv("ESP_CAM_STREAM_URL") or "").strip()
 
 CAMERA_LOCK = Lock()
 LATEST_CAMERA_FRAME = {
@@ -21,6 +24,8 @@ LATEST_CAMERA_FRAME = {
     "created_at": None,
     "content_type": None,
     "bytes": None,
+    "fetched_at": None,
+    "source": None,
 }
 
 
@@ -42,6 +47,7 @@ def _init_db():
                     station_id TEXT NOT NULL,
                     temperature REAL NOT NULL,
                     turbidity REAL NOT NULL,
+                    raw_turbidity REAL,
                     ph REAL NOT NULL,
                     tds REAL NOT NULL,
                     dissolved_oxygen REAL NOT NULL,
@@ -51,6 +57,10 @@ def _init_db():
                 )
                 """
             )
+            cols = conn.execute("PRAGMA table_info(telemetry)").fetchall()
+            col_names = {row["name"] for row in cols}
+            if "raw_turbidity" not in col_names:
+                conn.execute("ALTER TABLE telemetry ADD COLUMN raw_turbidity REAL")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS gps_readings (
@@ -71,6 +81,7 @@ def _init_db():
                     station_id="QQ-dbafa5-A",
                     temperature=29.44,
                     turbidity=14,
+                    raw_turbidity=None,
                     ph=6.76,
                     tds=97,
                     dissolved_oxygen=3.82,
@@ -89,6 +100,7 @@ def _insert_reading(
     station_id,
     temperature,
     turbidity,
+    raw_turbidity,
     ph,
     tds,
     dissolved_oxygen,
@@ -99,14 +111,15 @@ def _insert_reading(
     cur = conn.execute(
         """
         INSERT INTO telemetry (
-            station_id, temperature, turbidity, ph, tds, dissolved_oxygen, source, raw_line, created_at
+            station_id, temperature, turbidity, raw_turbidity, ph, tds, dissolved_oxygen, source, raw_line, created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             station_id,
             float(temperature),
             float(turbidity),
+            float(raw_turbidity) if raw_turbidity is not None else None,
             float(ph),
             float(tds),
             float(dissolved_oxygen),
@@ -126,6 +139,7 @@ def _serialize_reading(row):
         "station_id": row["station_id"],
         "temperature": row["temperature"],
         "turbidity": row["turbidity"],
+        "raw_turbidity": row["raw_turbidity"] if "raw_turbidity" in row.keys() else None,
         "ph": row["ph"],
         "tds": row["tds"],
         "do": row["dissolved_oxygen"],
@@ -233,6 +247,68 @@ def _cors(response):
     return response
 
 
+def _extract_jpeg_from_chunk(chunk):
+    start = chunk.find(b"\xff\xd8")
+    if start == -1:
+        return None
+    end = chunk.find(b"\xff\xd9", start + 2)
+    if end == -1:
+        return None
+    jpeg = chunk[start : end + 2]
+    if not jpeg:
+        return None
+    if len(jpeg) > MAX_CAMERA_FRAME_BYTES:
+        return None
+    return jpeg
+
+
+def _pull_frame_from_stream(url):
+    with requests.get(url, stream=True, timeout=(3, 8)) as response:
+        response.raise_for_status()
+        for chunk in response.iter_content(chunk_size=16 * 1024):
+            if not chunk:
+                continue
+            jpeg = _extract_jpeg_from_chunk(chunk)
+            if jpeg:
+                return jpeg
+    return None
+
+
+def _refresh_camera_frame_if_needed(force=False):
+    if not ESP_CAM_STREAM_URL:
+        return False, "ESP_CAM_STREAM_URL is not configured"
+
+    now = datetime.now(timezone.utc)
+    with CAMERA_LOCK:
+        fetched_at = LATEST_CAMERA_FRAME["fetched_at"]
+        if (
+            not force
+            and fetched_at is not None
+            and (now - fetched_at).total_seconds() < CAMERA_REFRESH_MIN_SECONDS
+            and LATEST_CAMERA_FRAME["bytes"]
+        ):
+            return True, None
+
+    try:
+        frame = _pull_frame_from_stream(ESP_CAM_STREAM_URL)
+    except requests.RequestException as exc:
+        return False, f"Failed to reach ESP stream: {exc}"
+
+    if not frame:
+        return False, "No JPEG frame found in stream response"
+
+    created_at = datetime.now(timezone.utc).isoformat()
+    with CAMERA_LOCK:
+        LATEST_CAMERA_FRAME["camera_id"] = "QQ-CAM-01"
+        LATEST_CAMERA_FRAME["created_at"] = created_at
+        LATEST_CAMERA_FRAME["content_type"] = "image/jpeg"
+        LATEST_CAMERA_FRAME["bytes"] = frame
+        LATEST_CAMERA_FRAME["fetched_at"] = datetime.now(timezone.utc)
+        LATEST_CAMERA_FRAME["source"] = ESP_CAM_STREAM_URL
+
+    return True, None
+
+
 @app.after_request
 def after_request(response):
     return _cors(response)
@@ -243,8 +319,10 @@ def after_request(response):
 @app.route("/api/gps", methods=["OPTIONS"])
 @app.route("/api/gps/latest", methods=["OPTIONS"])
 @app.route("/api/predictions", methods=["OPTIONS"])
+@app.route("/api/calibration/turbidity/latest", methods=["OPTIONS"])
 @app.route("/api/camera/frame", methods=["OPTIONS"])
 @app.route("/api/camera/frame/latest", methods=["OPTIONS"])
+@app.route("/api/camera/source", methods=["OPTIONS"])
 @app.route("/api/db/details", methods=["OPTIONS"])
 @app.route("/health", methods=["OPTIONS"])
 def options_handler():
@@ -267,10 +345,12 @@ def root():
                 "latest_reading": "/api/readings/latest",
                 "history": "/api/readings?limit=50",
                 "predictions": "/api/predictions?horizon=24&limit_history=all&source=sensor&target=temperature",
+                "turbidity_calibration": "/api/calibration/turbidity/latest?window=30",
                 "post_gps": "/api/gps",
                 "latest_gps": "/api/gps/latest",
                 "post_camera_frame": "/api/camera/frame?camera_id=QQ-CAM-01",
                 "latest_camera_frame": "/api/camera/frame/latest",
+                "camera_source": "/api/camera/source",
                 "db_details": "/api/db/details",
             },
         }
@@ -283,6 +363,7 @@ def post_reading():
     station_id = payload.get("station_id", "QQ-dbafa5-A")
     source = payload.get("source", "sensor")
     raw_line = payload.get("raw_line")
+    raw_turbidity = payload.get("raw_turbidity")
 
     required = ["temperature", "turbidity", "ph", "tds", "do"]
     missing = [key for key in required if payload.get(key) is None]
@@ -300,6 +381,7 @@ def post_reading():
                     station_id=station_id,
                     temperature=payload["temperature"],
                     turbidity=payload["turbidity"],
+                    raw_turbidity=raw_turbidity,
                     ph=payload["ph"],
                     tds=payload["tds"],
                     dissolved_oxygen=payload["do"],
@@ -313,6 +395,17 @@ def post_reading():
                 conn.close()
     except (TypeError, ValueError):
         return jsonify({"error": "temperature, turbidity, ph, tds, do must be numeric"}), 400
+
+    if source == "sensor":
+        print(
+            "[CAL] station=%s raw_turbidity=%s turbidity_ntu=%s created_at=%s"
+            % (
+                row["station_id"],
+                row["raw_turbidity"],
+                row["turbidity"],
+                row["created_at"],
+            )
+        )
 
     return jsonify({"status": "ok", "reading": _serialize_reading(row)}), 201
 
@@ -370,6 +463,57 @@ def get_reading_history():
             conn.close()
 
     return jsonify({"count": len(rows), "readings": [_serialize_reading(row) for row in rows]})
+
+
+@app.get("/api/calibration/turbidity/latest")
+def get_turbidity_calibration_latest():
+    try:
+        window = max(1, min(500, int(request.args.get("window", "30"))))
+    except ValueError:
+        window = 30
+
+    with DB_LOCK:
+        conn = _get_db_connection()
+        try:
+            latest = conn.execute(
+                """
+                SELECT *
+                FROM telemetry
+                WHERE source = 'sensor' AND raw_turbidity IS NOT NULL
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+            rows = conn.execute(
+                """
+                SELECT raw_turbidity, turbidity, created_at
+                FROM telemetry
+                WHERE source = 'sensor' AND raw_turbidity IS NOT NULL
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (window,),
+            ).fetchall()
+        finally:
+            conn.close()
+
+    if not latest:
+        return jsonify({"error": "No sensor rows with raw_turbidity yet", "latest": None}), 404
+
+    raw_values = [float(r["raw_turbidity"]) for r in rows if r["raw_turbidity"] is not None]
+    ntu_values = [float(r["turbidity"]) for r in rows if r["turbidity"] is not None]
+    avg_raw = (sum(raw_values) / len(raw_values)) if raw_values else None
+    avg_ntu = (sum(ntu_values) / len(ntu_values)) if ntu_values else None
+
+    return jsonify(
+        {
+            "latest": _serialize_reading(latest),
+            "window": window,
+            "window_count": len(rows),
+            "raw_turbidity_avg": round(avg_raw, 3) if avg_raw is not None else None,
+            "turbidity_avg": round(avg_ntu, 3) if avg_ntu is not None else None,
+        }
+    )
 
 
 @app.get("/api/predictions")
@@ -542,45 +686,43 @@ def get_latest_gps():
 
 @app.post("/api/camera/frame")
 def post_camera_frame():
-    camera_id = str(request.args.get("camera_id", "QQ-CAM-01")).strip() or "QQ-CAM-01"
-    content_type = (request.headers.get("Content-Type") or "").split(";")[0].strip().lower()
-    frame_bytes = request.get_data(cache=False, as_text=False)
+    return (
+        jsonify(
+            {
+                "error": "Push upload is disabled. Configure ESP_CAM_STREAM_URL and use /api/camera/frame/latest",
+                "configured_stream": bool(ESP_CAM_STREAM_URL),
+            }
+        ),
+        410,
+    )
 
-    if content_type != "image/jpeg":
-        return jsonify({"error": "Content-Type must be image/jpeg"}), 400
-    if not frame_bytes:
-        return jsonify({"error": "Empty frame payload"}), 400
-    if len(frame_bytes) > MAX_CAMERA_FRAME_BYTES:
-        return (
-            jsonify(
-                {
-                    "error": "Frame too large",
-                    "max_bytes": MAX_CAMERA_FRAME_BYTES,
-                    "received_bytes": len(frame_bytes),
-                }
-            ),
-            413,
-        )
 
-    created_at = datetime.now(timezone.utc).isoformat()
-    with CAMERA_LOCK:
-        LATEST_CAMERA_FRAME["camera_id"] = camera_id
-        LATEST_CAMERA_FRAME["created_at"] = created_at
-        LATEST_CAMERA_FRAME["content_type"] = "image/jpeg"
-        LATEST_CAMERA_FRAME["bytes"] = frame_bytes
-
+@app.get("/api/camera/source")
+def get_camera_source():
     return jsonify(
         {
-            "status": "ok",
-            "camera_id": camera_id,
-            "created_at": created_at,
-            "bytes": len(frame_bytes),
+            "configured": bool(ESP_CAM_STREAM_URL),
+            "stream_url": ESP_CAM_STREAM_URL or None,
+            "mode": "backend_pull",
         }
-    ), 201
+    )
 
 
 @app.get("/api/camera/frame/latest")
 def get_latest_camera_frame():
+    ok, err = _refresh_camera_frame_if_needed(force=False)
+    if not ok:
+        return (
+            jsonify(
+                {
+                    "configured": bool(ESP_CAM_STREAM_URL),
+                    "frame": None,
+                    "error": err,
+                }
+            ),
+            502 if ESP_CAM_STREAM_URL else 404,
+        )
+
     with CAMERA_LOCK:
         if not LATEST_CAMERA_FRAME["bytes"]:
             return jsonify({"configured": False, "frame": None}), 404
@@ -590,6 +732,7 @@ def get_latest_camera_frame():
             "content_type": LATEST_CAMERA_FRAME["content_type"],
             "bytes": len(LATEST_CAMERA_FRAME["bytes"]),
             "data_base64": base64.b64encode(LATEST_CAMERA_FRAME["bytes"]).decode("ascii"),
+            "source": LATEST_CAMERA_FRAME["source"],
         }
     return jsonify({"configured": True, "frame": frame_payload})
 

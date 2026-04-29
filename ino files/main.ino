@@ -30,6 +30,7 @@ SoftwareSerial mySerial(11, 10);
 
 static float temp;
 int turbidityValue;
+int turbidityRawValue;
 float phValue;
 int tdsValue;
 float DOValue;
@@ -69,8 +70,9 @@ float readTemperature() {
   return temp;
 }
 
-int readTurbidity() {
-  float turbiditySensorValue = analogRead(TURBIDITY);
+int readTurbidity(int& rawOut) {
+  int turbiditySensorValue = analogRead(TURBIDITY);
+  rawOut = turbiditySensorValue;
   int turbidityValue = map(turbiditySensorValue, 0,640, 100, 0);
 
   return turbidityValue;
@@ -132,7 +134,7 @@ void loop(void)
   temp = readTemperature();
 
   // turbidity reading
-  turbidityValue = readTurbidity();
+  turbidityValue = readTurbidity(turbidityRawValue);
 
   // ph reading
   phValue = readPH();
@@ -153,6 +155,9 @@ void loop(void)
     Serial.print("Turbidity: ");
     Serial.print(turbidityValue);
     Serial.print(" NTU   |   ");
+    Serial.print("RawTurbidity: ");
+    Serial.print(turbidityRawValue);
+    Serial.print("   |   ");
 
     Serial.print("pH: ");
     Serial.print(phValue);
@@ -172,6 +177,8 @@ void loop(void)
     mySerial.print(temp, 2);
     mySerial.print("|Turbidity:");
     mySerial.print(turbidityValue);
+    mySerial.print("|RawTurbidity:");
+    mySerial.print(turbidityRawValue);
     mySerial.print("|pH:");
     mySerial.print(phValue, 2);
     mySerial.print("|TDS:");

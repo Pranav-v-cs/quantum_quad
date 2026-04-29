@@ -26,3 +26,9 @@ venv/
 # IDE
 .vscode/
 .idea/
+
+backend/data/*.db
+
+
+# Local telemetry database
+backend/data/telemetry.db
